@@ -2,24 +2,34 @@ import logging
 import re
 import uuid
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, cast
 
 from fastapi import Depends, Request
-from fastapi_users import BaseUserManager, FastAPIUsers, InvalidPasswordException, UUIDIDMixin
+from fastapi_users import (
+    BaseUserManager,
+    FastAPIUsers,
+    InvalidPasswordException,
+    UUIDIDMixin,
+    exceptions,
+    schemas,
+)
 from fastapi_users.authentication import AuthenticationBackend, CookieTransport, JWTStrategy
 from fastapi_users_db_sqlalchemy import SQLAlchemyUserDatabase
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.db import get_async_session
 from features.auth.email import send_reset_password_email, send_verify_email
 from features.auth.models import User
+from features.organizations.models import Organization
 
 logger = logging.getLogger(__name__)
 VERIFY_EMAIL_TOKEN_LIFETIME_SECONDS = 3600
 RESET_PASSWORD_TOKEN_LIFETIME_SECONDS = 3600
 VERIFY_EMAIL_RESEND_COOLDOWN_SECONDS = 3600
 _verify_email_last_sent_at: dict[uuid.UUID, datetime] = {}
+ORGANIZATION_SLUG_MAX_LENGTH = 120
 
 
 def _cleanup_verify_email_send_tracker(now: datetime) -> None:
@@ -64,11 +74,47 @@ async def get_user_db(session: AsyncSession = Depends(get_async_session)):
     yield SQLAlchemyUserDatabase(session, User)
 
 
+def _build_organization_name_from_email(email: str) -> str:
+    local_part = email.split("@", maxsplit=1)[0]
+    cleaned = re.sub(r"[._-]+", " ", local_part).strip()
+    if not cleaned:
+        return "Organization"
+    return cleaned.title()
+
+
+def _slugify(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.lower()).strip("-")
+    if not slug:
+        slug = "organization"
+    return slug[:ORGANIZATION_SLUG_MAX_LENGTH]
+
+
+async def _organization_slug_exists(session: AsyncSession, slug: str) -> bool:
+    result = await session.execute(
+        select(Organization.id).where(Organization.slug == slug).limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def _build_unique_organization_slug(session: AsyncSession, email: str) -> str:
+    base_slug = _slugify(email.split("@", maxsplit=1)[0])
+    candidate = base_slug
+    suffix = 2
+
+    while await _organization_slug_exists(session, candidate):
+        suffix_token = f"-{suffix}"
+        max_base_length = ORGANIZATION_SLUG_MAX_LENGTH - len(suffix_token)
+        truncated_base = base_slug[:max_base_length].rstrip("-")
+        candidate = f"{truncated_base}{suffix_token}"
+        suffix += 1
+
+    return candidate
+
+
 class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     """Custom user manager with strong password validation."""
 
     reset_password_token_secret = settings.SECRET_KEY
-    reset_password_token_lifetime_seconds = RESET_PASSWORD_TOKEN_LIFETIME_SECONDS
     verification_token_secret = settings.SECRET_KEY
     verification_token_lifetime_seconds = VERIFY_EMAIL_TOKEN_LIFETIME_SECONDS
 
@@ -98,6 +144,55 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
 
         if errors:
             raise InvalidPasswordException(reason=" ".join(errors))
+
+    async def create(
+        self,
+        user_create: schemas.BaseUserCreate,
+        safe: bool = False,
+        request: Request | None = None,
+    ) -> User:
+        await self.validate_password(user_create.password, user_create)
+
+        existing_user = await self.user_db.get_by_email(user_create.email)
+        if existing_user is not None:
+            raise exceptions.UserAlreadyExists()
+
+        user_dict = (
+            user_create.create_update_dict()
+            if safe
+            else user_create.create_update_dict_superuser()
+        )
+        password = user_dict.pop("password")
+        user_dict["hashed_password"] = self.password_helper.hash(password)
+
+        user_db = cast(SQLAlchemyUserDatabase, self.user_db)
+        session = user_db.session
+        organization_name = _build_organization_name_from_email(user_create.email)
+        organization_slug = await _build_unique_organization_slug(
+            session,
+            user_create.email,
+        )
+        organization = Organization(
+            name=organization_name,
+            slug=organization_slug,
+        )
+
+        user = user_db.user_table(**user_dict)
+        user.organization = organization
+        if user.role is None:
+            user.role = "owner"
+
+        try:
+            session.add(organization)
+            session.add(user)
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+
+        await session.refresh(user)
+        await self.on_after_register(user, request)
+        return user
 
     async def on_after_register(self, user: User, request: Request | None = None):
         """Hook called after user registration."""

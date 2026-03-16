@@ -6,7 +6,8 @@ from fastapi_users import schemas
 class UserRead(schemas.BaseUser[uuid.UUID]):
     """User read schema - returned from API."""
 
-    pass
+    organization_id: uuid.UUID | None = None
+    role: str | None = None
 
 
 class UserCreate(schemas.BaseUserCreate):
