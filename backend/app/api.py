@@ -1,13 +1,11 @@
 import time
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.config import settings
-from core.db import create_db_and_tables
 from core.logging import configure_logging, get_logger
-from features.auth.models import Base
+import features.models_registry  # noqa: F401
 from features.auth.wiring import include_auth_routers
 from features.protected.wiring import protected_router
 
@@ -15,15 +13,8 @@ configure_logging()
 logger = get_logger(__name__)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Application lifespan context - startup/shutdown."""
-    await create_db_and_tables(Base.metadata)
-    yield
-
-
 def create_app() -> FastAPI:
-    app = FastAPI(title="FastAPI Users Auth", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="FastAPI Users Auth", version="1.0.0")
 
     app.add_middleware(
         CORSMiddleware,
