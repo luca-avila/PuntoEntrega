@@ -10,14 +10,13 @@ from features.auth.wiring import include_auth_routers
 from features.deliveries.wiring import deliveries_router
 from features.locations.wiring import locations_router
 from features.products.wiring import products_router
-from features.protected.wiring import protected_router
 
 configure_logging()
 logger = get_logger(__name__)
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="FastAPI Users Auth", version="1.0.0")
+    app = FastAPI(title="PuntoEntrega API", version="1.0.0")
 
     app.add_middleware(
         CORSMiddleware,
@@ -28,7 +27,6 @@ def create_app() -> FastAPI:
     )
 
     include_auth_routers(app)
-    app.include_router(protected_router, tags=["protected"])
     app.include_router(locations_router, prefix="/locations", tags=["locations"])
     app.include_router(products_router, prefix="/products", tags=["products"])
     app.include_router(deliveries_router, prefix="/deliveries", tags=["deliveries"])

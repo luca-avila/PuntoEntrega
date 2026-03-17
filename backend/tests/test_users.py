@@ -217,23 +217,6 @@ class TestCurrentUser:
         assert "email" in response.json()
 
 
-# ── Protected Route Tests ────────────────────────────────────────────
-
-
-class TestProtectedRoute:
-    async def test_protected_route_authenticated(self, client: AsyncClient):
-        await register_user(client)
-        await mark_user_verified()
-        await login_user(client)
-        response = await client.get("/protected-route")
-        assert response.status_code == 200
-        assert "Hello" in response.json()["message"]
-
-    async def test_protected_route_unauthenticated(self, client: AsyncClient):
-        response = await client.get("/protected-route")
-        assert response.status_code == 401
-
-
 # ── Email Flow Tests ────────────────────────────────────────────────
 
 
