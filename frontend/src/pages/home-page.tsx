@@ -1,53 +1,31 @@
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useAuth } from "@/hooks/use-auth";
-import { useState } from "react";
+import { Link } from "react-router-dom";
 
 export function HomePage() {
-  const { user, logout } = useAuth();
-  const [isLoggingOut, setIsLoggingOut] = useState(false);
-
-  const handleLogout = async () => {
-    setIsLoggingOut(true);
-    try {
-      await logout();
-    } finally {
-      setIsLoggingOut(false);
-    }
-  };
-
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-4xl items-center px-4 py-10">
-      <Card className="w-full">
+    <section className="space-y-4">
+      <Card>
         <CardHeader>
-          <CardTitle>Frontend base listo</CardTitle>
+          <CardTitle>Panel operativo</CardTitle>
           <CardDescription>
-            Esta pantalla confirma que el enrutado protegido y la sesión por cookie funcionan.
+            Gestioná ubicaciones, productos y entregas desde este espacio.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1 text-sm">
-            <p>
-              <span className="font-medium">Usuario:</span> {user?.email}
+        <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+          <Link
+            className="rounded-md border p-4 transition-colors hover:bg-muted"
+            to="/locations"
+          >
+            <p className="font-medium">Ubicaciones</p>
+            <p className="text-muted-foreground">
+              Alta y edición de puntos de entrega con mapa.
             </p>
-            <p>
-              <span className="font-medium">Organización:</span>{" "}
-              {user?.organization_id ?? "Sin organización"}
-            </p>
-            <p>
-              <span className="font-medium">Rol:</span> {user?.role ?? "Sin rol"}
-            </p>
+          </Link>
+          <div className="rounded-md border border-dashed p-4 text-muted-foreground">
+            Próximo módulo: productos y flujo de entregas.
           </div>
-
-          <div className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-            Próximos pasos del plan frontend: contratos API, ubicaciones, productos, entregas e historial.
-          </div>
-
-          <Button disabled={isLoggingOut} onClick={handleLogout} variant="outline">
-            {isLoggingOut ? "Cerrando sesión..." : "Cerrar sesión"}
-          </Button>
         </CardContent>
       </Card>
-    </main>
+    </section>
   );
 }

@@ -35,3 +35,7 @@
     font-family: "Manrope", "Segoe UI", sans-serif;
   }
 }
+
+.leaflet-container {
+  font: inherit;
+}
