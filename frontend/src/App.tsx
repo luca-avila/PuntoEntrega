@@ -5,6 +5,7 @@ import { HomePage } from "@/pages/home-page";
 import { LocationFormPage } from "@/pages/location-form-page";
 import { LocationsListPage } from "@/pages/locations-list-page";
 import { LoginPage } from "@/pages/login-page";
+import { NewDeliveryPage } from "@/pages/new-delivery-page";
 import { ProductFormPage } from "@/pages/product-form-page";
 import { ProductsListPage } from "@/pages/products-list-page";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -19,6 +20,8 @@ export default function App() {
           <Route element={<ProtectedRoute />}>
             <Route element={<ProtectedLayout />}>
               <Route path="/" element={<HomePage />} />
+
+              <Route path="/deliveries/nueva" element={<NewDeliveryPage />} />
 
               <Route path="/locations" element={<LocationsListPage />} />
               <Route

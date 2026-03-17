@@ -5,9 +5,10 @@ import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
 
 const navigationItems = [
-  { to: "/", label: "Inicio" },
+  { to: "/deliveries/nueva", label: "Nueva entrega" },
   { to: "/locations", label: "Ubicaciones" },
   { to: "/products", label: "Productos" },
+  { to: "/", label: "Inicio" },
 ];
 
 export function ProtectedLayout() {
