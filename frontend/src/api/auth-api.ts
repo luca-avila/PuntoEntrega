@@ -1,9 +1,19 @@
-import type { LoginRequest, SessionUser } from "@/api/contracts/auth";
+import type { LoginRequest, RegisterRequest, SessionUser } from "@/api/contracts/auth";
 import { apiRequest } from "@/api/http-client";
 
 export const authApi = {
   getSession(): Promise<SessionUser> {
     return apiRequest<SessionUser>("/users/me");
+  },
+
+  register(payload: RegisterRequest): Promise<SessionUser> {
+    return apiRequest<SessionUser>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
   },
 
   login(payload: LoginRequest): Promise<void> {

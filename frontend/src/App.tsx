@@ -10,6 +10,7 @@ import { LoginPage } from "@/pages/login-page";
 import { NewDeliveryPage } from "@/pages/new-delivery-page";
 import { ProductFormPage } from "@/pages/product-form-page";
 import { ProductsListPage } from "@/pages/products-list-page";
+import { RegisterPage } from "@/pages/register-page";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<ProtectedLayout />}>
