@@ -1,6 +1,8 @@
 import { ProtectedLayout } from "@/components/layout/protected-layout";
 import { AuthProvider } from "@/features/auth/auth-context";
 import { ProtectedRoute } from "@/features/auth/protected-route";
+import { DeliveriesHistoryPage } from "@/pages/deliveries-history-page";
+import { DeliveryDetailPage } from "@/pages/delivery-detail-page";
 import { HomePage } from "@/pages/home-page";
 import { LocationFormPage } from "@/pages/location-form-page";
 import { LocationsListPage } from "@/pages/locations-list-page";
@@ -21,7 +23,9 @@ export default function App() {
             <Route element={<ProtectedLayout />}>
               <Route path="/" element={<HomePage />} />
 
+              <Route path="/deliveries" element={<DeliveriesHistoryPage />} />
               <Route path="/deliveries/nueva" element={<NewDeliveryPage />} />
+              <Route path="/deliveries/:deliveryId" element={<DeliveryDetailPage />} />
 
               <Route path="/locations" element={<LocationsListPage />} />
               <Route

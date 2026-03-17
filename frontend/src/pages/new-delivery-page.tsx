@@ -213,6 +213,18 @@ export function NewDeliveryPage() {
               ID: {createdDelivery.id} · Estado de email: {getEmailStatusLabel(createdDelivery.email_status)}
             </CardDescription>
           </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => navigate(`/deliveries/${createdDelivery.id}`)}
+              type="button"
+              variant="outline"
+            >
+              Ver detalle
+            </Button>
+            <Button onClick={() => navigate("/deliveries")} type="button" variant="outline">
+              Ir al historial
+            </Button>
+          </CardContent>
         </Card>
       ) : null}
 

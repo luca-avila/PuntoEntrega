@@ -6,6 +6,7 @@ import { NavLink, Outlet } from "react-router-dom";
 
 const navigationItems = [
   { to: "/deliveries/nueva", label: "Nueva entrega" },
+  { to: "/deliveries", label: "Historial" },
   { to: "/locations", label: "Ubicaciones" },
   { to: "/products", label: "Productos" },
   { to: "/", label: "Inicio" },

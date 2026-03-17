@@ -11,7 +11,7 @@ export function HomePage() {
             Gestioná ubicaciones, productos y entregas desde este espacio.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-3">
+        <CardContent className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <Link
             className="rounded-md border p-4 transition-colors hover:bg-muted"
             to="/deliveries/nueva"
@@ -19,6 +19,16 @@ export function HomePage() {
             <p className="font-medium">Nueva entrega</p>
             <p className="text-muted-foreground">
               Pantalla principal para registrar consignaciones.
+            </p>
+          </Link>
+
+          <Link
+            className="rounded-md border p-4 transition-colors hover:bg-muted"
+            to="/deliveries"
+          >
+            <p className="font-medium">Historial</p>
+            <p className="text-muted-foreground">
+              Consultá entregas anteriores y estado de email.
             </p>
           </Link>
 
