@@ -4,7 +4,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 # Set required env vars before importing the app so Settings validation passes
-os.environ.setdefault("SECRET_KEY", "test-secret-key")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-min-32-characters-long")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
 os.environ["RESEND_API_KEY"] = ""
 os.environ["EMAIL_FROM"] = ""

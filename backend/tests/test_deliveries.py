@@ -1,0 +1,297 @@
+import uuid
+from datetime import UTC, datetime, timedelta
+
+import pytest
+from httpx import AsyncClient
+
+from tests.test_locations import login_user, mark_user_verified, register_user
+from tests.test_products import build_product_payload
+
+
+@pytest.fixture(autouse=True)
+def mock_delivery_email_success(monkeypatch: pytest.MonkeyPatch):
+    async def _success_sender(_delivery):
+        return None
+
+    monkeypatch.setattr(
+        "features.deliveries.service.send_delivery_summary_email",
+        _success_sender,
+    )
+
+
+def build_location_payload(name: str = "Sucursal Centro") -> dict[str, object]:
+    return {
+        "name": name,
+        "address": "Av. Siempre Viva 742",
+        "contact_name": "Maria Perez",
+        "contact_phone": "+54 11 1234 5678",
+        "contact_email": "maria@example.com",
+        "latitude": -34.6037,
+        "longitude": -58.3816,
+        "notes": "Entregar por la puerta lateral.",
+    }
+
+
+async def create_location(client: AsyncClient, name: str = "Sucursal Centro") -> dict[str, object]:
+    response = await client.post("/locations", json=build_location_payload(name=name))
+    assert response.status_code == 201
+    return response.json()
+
+
+async def create_product(
+    client: AsyncClient,
+    *,
+    name: str = "Harina de almendras",
+    is_active: bool = True,
+) -> dict[str, object]:
+    payload = build_product_payload()
+    payload["name"] = name
+    payload["is_active"] = is_active
+    response = await client.post("/products", json=payload)
+    assert response.status_code == 201
+    return response.json()
+
+
+class TestDeliveriesAuth:
+    async def test_deliveries_endpoints_require_authentication(self, client: AsyncClient):
+        delivery_id = uuid.uuid4()
+
+        list_response = await client.get("/deliveries")
+        create_response = await client.post("/deliveries", json={})
+        get_response = await client.get(f"/deliveries/{delivery_id}")
+
+        assert list_response.status_code == 401
+        assert create_response.status_code == 401
+        assert get_response.status_code == 401
+
+
+class TestDeliveriesCrud:
+    async def test_create_list_and_get_delivery(self, client: AsyncClient):
+        user_email = "deliveries-owner@example.com"
+        await register_user(client, user_email)
+        await mark_user_verified(user_email)
+        await login_user(client, user_email)
+
+        location = await create_location(client)
+        product = await create_product(client)
+        delivered_at = datetime.now(UTC).replace(microsecond=0)
+
+        create_response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": location["id"],
+                "delivered_at": delivered_at.isoformat(),
+                "payment_method": "transfer",
+                "payment_notes": "Pagado contra entrega.",
+                "observations": "Entregado en depósito.",
+                "items": [{"product_id": product["id"], "quantity": "3.50"}],
+            },
+        )
+        assert create_response.status_code == 201
+        created_delivery = create_response.json()
+        delivery_id = created_delivery["id"]
+        assert created_delivery["location_id"] == location["id"]
+        assert created_delivery["payment_method"] == "transfer"
+        assert created_delivery["email_status"] == "sent"
+        assert len(created_delivery["items"]) == 1
+
+        list_response = await client.get("/deliveries")
+        assert list_response.status_code == 200
+        listed_deliveries = list_response.json()
+        assert len(listed_deliveries) == 1
+        assert listed_deliveries[0]["id"] == delivery_id
+
+        get_response = await client.get(f"/deliveries/{delivery_id}")
+        assert get_response.status_code == 200
+        fetched_delivery = get_response.json()
+        assert fetched_delivery["id"] == delivery_id
+        assert fetched_delivery["items"][0]["product_id"] == product["id"]
+
+    async def test_email_failure_keeps_delivery_and_sets_failed_status(
+        self,
+        client: AsyncClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        async def _failing_sender(_delivery):
+            raise RuntimeError("smtp down")
+
+        monkeypatch.setattr(
+            "features.deliveries.service.send_delivery_summary_email",
+            _failing_sender,
+        )
+
+        user_email = "deliveries-email-failed@example.com"
+        await register_user(client, user_email)
+        await mark_user_verified(user_email)
+        await login_user(client, user_email)
+
+        location = await create_location(client)
+        product = await create_product(client)
+
+        response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": location["id"],
+                "delivered_at": datetime.now(UTC).isoformat(),
+                "payment_method": "cash",
+                "items": [{"product_id": product["id"], "quantity": "1"}],
+            },
+        )
+        assert response.status_code == 201
+        delivery = response.json()
+        assert delivery["email_status"] == "failed"
+
+        persisted_response = await client.get(f"/deliveries/{delivery['id']}")
+        assert persisted_response.status_code == 200
+        assert persisted_response.json()["id"] == delivery["id"]
+
+    async def test_create_delivery_requires_items(self, client: AsyncClient):
+        user_email = "deliveries-missing-items@example.com"
+        await register_user(client, user_email)
+        await mark_user_verified(user_email)
+        await login_user(client, user_email)
+
+        location = await create_location(client)
+
+        response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": location["id"],
+                "delivered_at": datetime.now(UTC).isoformat(),
+                "payment_method": "cash",
+                "items": [],
+            },
+        )
+        assert response.status_code == 422
+
+    async def test_create_delivery_rejects_non_positive_quantity(self, client: AsyncClient):
+        user_email = "deliveries-invalid-quantity@example.com"
+        await register_user(client, user_email)
+        await mark_user_verified(user_email)
+        await login_user(client, user_email)
+
+        location = await create_location(client)
+        product = await create_product(client)
+
+        response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": location["id"],
+                "delivered_at": datetime.now(UTC).isoformat(),
+                "payment_method": "cash",
+                "items": [{"product_id": product["id"], "quantity": "0"}],
+            },
+        )
+        assert response.status_code == 422
+
+    async def test_list_deliveries_supports_location_and_date_filters(self, client: AsyncClient):
+        user_email = "deliveries-filter@example.com"
+        await register_user(client, user_email)
+        await mark_user_verified(user_email)
+        await login_user(client, user_email)
+
+        first_location = await create_location(client, name="Sucursal Norte")
+        second_location = await create_location(client, name="Sucursal Sur")
+        product = await create_product(client)
+
+        old_delivery_time = datetime.now(UTC) - timedelta(days=3)
+        recent_delivery_time = datetime.now(UTC) - timedelta(days=1)
+
+        old_delivery_response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": first_location["id"],
+                "delivered_at": old_delivery_time.isoformat(),
+                "payment_method": "cash",
+                "items": [{"product_id": product["id"], "quantity": "1"}],
+            },
+        )
+        recent_delivery_response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": second_location["id"],
+                "delivered_at": recent_delivery_time.isoformat(),
+                "payment_method": "transfer",
+                "items": [{"product_id": product["id"], "quantity": "2"}],
+            },
+        )
+        assert old_delivery_response.status_code == 201
+        assert recent_delivery_response.status_code == 201
+
+        location_filtered_response = await client.get(
+            "/deliveries",
+            params={"location_id": second_location["id"]},
+        )
+        assert location_filtered_response.status_code == 200
+        location_filtered_deliveries = location_filtered_response.json()
+        assert len(location_filtered_deliveries) == 1
+        assert location_filtered_deliveries[0]["location_id"] == second_location["id"]
+
+        date_filtered_response = await client.get(
+            "/deliveries",
+            params={"delivered_from": (datetime.now(UTC) - timedelta(days=2)).isoformat()},
+        )
+        assert date_filtered_response.status_code == 200
+        date_filtered_deliveries = date_filtered_response.json()
+        assert len(date_filtered_deliveries) == 1
+        assert date_filtered_deliveries[0]["location_id"] == second_location["id"]
+
+
+class TestDeliveriesIsolation:
+    async def test_cannot_access_or_create_with_foreign_resources(self, client: AsyncClient):
+        first_email = "deliveries-org-a@example.com"
+        second_email = "deliveries-org-b@example.com"
+
+        await register_user(client, first_email)
+        await mark_user_verified(first_email)
+        await login_user(client, first_email)
+
+        location_a = await create_location(client)
+        product_a = await create_product(client)
+        delivery_response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": location_a["id"],
+                "delivered_at": datetime.now(UTC).isoformat(),
+                "payment_method": "cash",
+                "items": [{"product_id": product_a["id"], "quantity": "1"}],
+            },
+        )
+        assert delivery_response.status_code == 201
+        delivery_id = delivery_response.json()["id"]
+
+        logout_response = await client.post("/auth/jwt/logout")
+        assert logout_response.status_code in (200, 204)
+
+        await register_user(client, second_email)
+        await mark_user_verified(second_email)
+        await login_user(client, second_email)
+
+        get_response = await client.get(f"/deliveries/{delivery_id}")
+        assert get_response.status_code == 404
+        assert get_response.json()["detail"] == "Entrega no encontrada."
+
+        foreign_location_delivery_response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": location_a["id"],
+                "delivered_at": datetime.now(UTC).isoformat(),
+                "payment_method": "cash",
+                "items": [{"product_id": product_a["id"], "quantity": "1"}],
+            },
+        )
+        assert foreign_location_delivery_response.status_code == 404
+        assert foreign_location_delivery_response.json()["detail"] == "Ubicación no encontrada."
+
+        location_b = await create_location(client, name="Sucursal B")
+        foreign_product_delivery_response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": location_b["id"],
+                "delivered_at": datetime.now(UTC).isoformat(),
+                "payment_method": "cash",
+                "items": [{"product_id": product_a["id"], "quantity": "1"}],
+            },
+        )
+        assert foreign_product_delivery_response.status_code == 404
+        assert foreign_product_delivery_response.json()["detail"] == "Producto no encontrado."
