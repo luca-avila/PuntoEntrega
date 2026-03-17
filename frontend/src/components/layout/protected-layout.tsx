@@ -7,6 +7,7 @@ import { NavLink, Outlet } from "react-router-dom";
 const navigationItems = [
   { to: "/", label: "Inicio" },
   { to: "/locations", label: "Ubicaciones" },
+  { to: "/products", label: "Productos" },
 ];
 
 export function ProtectedLayout() {

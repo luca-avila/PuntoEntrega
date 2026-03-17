@@ -21,9 +21,16 @@ export function HomePage() {
               Alta y edición de puntos de entrega con mapa.
             </p>
           </Link>
-          <div className="rounded-md border border-dashed p-4 text-muted-foreground">
-            Próximo módulo: productos y flujo de entregas.
-          </div>
+
+          <Link
+            className="rounded-md border p-4 transition-colors hover:bg-muted"
+            to="/products"
+          >
+            <p className="font-medium">Productos</p>
+            <p className="text-muted-foreground">
+              Gestión del catálogo activo/inactivo para entregas.
+            </p>
+          </Link>
         </CardContent>
       </Card>
     </section>
