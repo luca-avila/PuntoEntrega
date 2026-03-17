@@ -20,7 +20,7 @@ async def get_current_organization_id(
     if user.organization_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="User is not assigned to an organization.",
+            detail="El usuario no está asignado a una organización.",
         )
     return user.organization_id
 
@@ -39,7 +39,7 @@ async def get_current_organization(
     if organization is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Organization is inactive or does not exist.",
+            detail="La organización está inactiva o no existe.",
         )
     return organization
 
@@ -71,7 +71,7 @@ async def ensure_location_belongs_to_organization(
         organization_id,
     )
     if not belongs_to_organization:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Ubicación no encontrada.")
 
 
 async def ensure_product_belongs_to_organization(
@@ -86,7 +86,7 @@ async def ensure_product_belongs_to_organization(
         organization_id,
     )
     if not belongs_to_organization:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado.")
 
 
 async def ensure_delivery_belongs_to_organization(
@@ -101,5 +101,5 @@ async def ensure_delivery_belongs_to_organization(
         organization_id,
     )
     if not belongs_to_organization:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Delivery not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entrega no encontrada.")
 

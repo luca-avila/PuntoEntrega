@@ -57,7 +57,7 @@ async def get_location_for_organization(
     if location is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Location not found.",
+            detail="Ubicación no encontrada.",
         )
     return location
 

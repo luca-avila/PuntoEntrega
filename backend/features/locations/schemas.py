@@ -28,7 +28,7 @@ class LocationUpdate(BaseModel):
     @model_validator(mode="after")
     def validate_non_empty_payload(self) -> "LocationUpdate":
         if not self.model_fields_set:
-            raise ValueError("At least one field must be provided.")
+            raise ValueError("Debe enviar al menos un campo para actualizar.")
         return self
 
 

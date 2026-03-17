@@ -7,7 +7,9 @@ from core.config import settings
 from core.logging import configure_logging, get_logger
 import features.models_registry  # noqa: F401
 from features.auth.wiring import include_auth_routers
+from features.deliveries.wiring import deliveries_router
 from features.locations.wiring import locations_router
+from features.products.wiring import products_router
 from features.protected.wiring import protected_router
 
 configure_logging()
@@ -28,6 +30,8 @@ def create_app() -> FastAPI:
     include_auth_routers(app)
     app.include_router(protected_router, tags=["protected"])
     app.include_router(locations_router, prefix="/locations", tags=["locations"])
+    app.include_router(products_router, prefix="/products", tags=["products"])
+    app.include_router(deliveries_router, prefix="/deliveries", tags=["deliveries"])
 
     if settings.LOG_REQUESTS:
         @app.middleware("http")

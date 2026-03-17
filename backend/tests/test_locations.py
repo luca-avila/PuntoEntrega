@@ -108,6 +108,7 @@ class TestLocationsCrud:
 
         patch_response = await client.patch(f"/locations/{location_id}", json={})
         assert patch_response.status_code == 422
+        assert "Debe enviar al menos un campo" in patch_response.text
 
 
 class TestLocationsIsolation:
@@ -138,6 +139,8 @@ class TestLocationsIsolation:
         list_response = await client.get("/locations")
 
         assert get_response.status_code == 404
+        assert get_response.json()["detail"] == "Ubicación no encontrada."
         assert patch_response.status_code == 404
+        assert patch_response.json()["detail"] == "Ubicación no encontrada."
         assert list_response.status_code == 200
         assert list_response.json() == []
