@@ -5,56 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import {
+  formatDeliveryDateTime,
+  getDeliveryEmailStatusClassName,
+  getDeliveryEmailStatusLabel,
+  getDeliveryPaymentMethodLabel,
+} from "@/features/deliveries/display";
 import { getApiErrorMessage } from "@/lib/errors";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function getEmailStatusLabel(status: DeliveryRead["email_status"]): string {
-  if (status === "sent") {
-    return "Enviado";
-  }
-
-  if (status === "failed") {
-    return "Fallido";
-  }
-
-  return "Pendiente";
-}
-
-function getEmailStatusClassName(status: DeliveryRead["email_status"]): string {
-  if (status === "sent") {
-    return "bg-emerald-100 text-emerald-700";
-  }
-
-  if (status === "failed") {
-    return "bg-rose-100 text-rose-700";
-  }
-
-  return "bg-slate-200 text-slate-700";
-}
-
-function getPaymentMethodLabel(value: DeliveryRead["payment_method"]): string {
-  if (value === "cash") {
-    return "Efectivo";
-  }
-
-  if (value === "transfer") {
-    return "Transferencia";
-  }
-
-  if (value === "current_account") {
-    return "Cuenta corriente";
-  }
-
-  return "Otro";
-}
 
 function toFilterIsoDate(value: string, mode: "from" | "to"): string | undefined {
   const trimmedValue = value.trim();
@@ -97,6 +56,7 @@ export function DeliveriesHistoryPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [filterError, setFilterError] = useState<string | null>(null);
 
   const [locationFilter, setLocationFilter] = useState("");
   const [dateFromFilter, setDateFromFilter] = useState("");
@@ -149,6 +109,14 @@ export function DeliveriesHistoryPage() {
   );
 
   const applyFilters = async () => {
+    const fromDate = dateFromFilter.trim();
+    const toDate = dateToFilter.trim();
+    if (fromDate && toDate && fromDate > toDate) {
+      setFilterError("La fecha Desde debe ser menor o igual a la fecha Hasta.");
+      return;
+    }
+
+    setFilterError(null);
     setIsLoading(true);
     setErrorMessage(null);
     try {
@@ -166,6 +134,7 @@ export function DeliveriesHistoryPage() {
     setLocationFilter("");
     setDateFromFilter("");
     setDateToFilter("");
+    setFilterError(null);
 
     setIsLoading(true);
     setErrorMessage(null);
@@ -198,6 +167,7 @@ export function DeliveriesHistoryPage() {
           <div className="space-y-2 lg:col-span-1">
             <Label htmlFor="filter_location_id">Ubicación</Label>
             <Select
+              disabled={isLoading}
               id="filter_location_id"
               onChange={(event) => setLocationFilter(event.target.value)}
               value={locationFilter}
@@ -214,6 +184,7 @@ export function DeliveriesHistoryPage() {
           <div className="space-y-2">
             <Label htmlFor="filter_date_from">Desde</Label>
             <Input
+              disabled={isLoading}
               id="filter_date_from"
               onChange={(event) => setDateFromFilter(event.target.value)}
               type="date"
@@ -224,6 +195,7 @@ export function DeliveriesHistoryPage() {
           <div className="space-y-2">
             <Label htmlFor="filter_date_to">Hasta</Label>
             <Input
+              disabled={isLoading}
               id="filter_date_to"
               onChange={(event) => setDateToFilter(event.target.value)}
               type="date"
@@ -232,13 +204,27 @@ export function DeliveriesHistoryPage() {
           </div>
 
           <div className="flex items-end gap-2">
-            <Button onClick={() => void applyFilters()} type="button" variant="default">
+            <Button
+              disabled={isLoading}
+              onClick={() => void applyFilters()}
+              type="button"
+              variant="default"
+            >
               Aplicar
             </Button>
-            <Button onClick={() => void clearFilters()} type="button" variant="outline">
+            <Button
+              disabled={isLoading}
+              onClick={() => void clearFilters()}
+              type="button"
+              variant="outline"
+            >
               Limpiar
             </Button>
           </div>
+
+          {filterError ? (
+            <p className="sm:col-span-2 lg:col-span-4 text-sm text-destructive">{filterError}</p>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -290,15 +276,16 @@ export function DeliveriesHistoryPage() {
                   <CardTitle className="flex flex-wrap items-center gap-2 text-base">
                     {location?.name ?? "Ubicación"}
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${getEmailStatusClassName(
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${getDeliveryEmailStatusClassName(
                         delivery.email_status,
                       )}`}
                     >
-                      Email: {getEmailStatusLabel(delivery.email_status)}
+                      Email: {getDeliveryEmailStatusLabel(delivery.email_status)}
                     </span>
                   </CardTitle>
                   <CardDescription>
-                    {formatDateTime(delivery.delivered_at)} · {getPaymentMethodLabel(delivery.payment_method)}
+                    {formatDeliveryDateTime(delivery.delivered_at)} ·{" "}
+                    {getDeliveryPaymentMethodLabel(delivery.payment_method)}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3 text-sm sm:flex-row sm:items-end sm:justify-between">

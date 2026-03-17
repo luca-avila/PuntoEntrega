@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { getDeliveryEmailStatusLabel } from "@/features/deliveries/display";
 import { getApiErrorMessage } from "@/lib/errors";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -42,18 +43,6 @@ function getCurrentDatetimeForInput(): string {
   const now = new Date();
   const timezoneOffsetMs = now.getTimezoneOffset() * 60_000;
   return new Date(now.getTime() - timezoneOffsetMs).toISOString().slice(0, 16);
-}
-
-function getEmailStatusLabel(status: DeliveryRead["email_status"]): string {
-  if (status === "sent") {
-    return "Enviado";
-  }
-
-  if (status === "failed") {
-    return "Fallido";
-  }
-
-  return "Pendiente";
 }
 
 function buildDefaultValues(): DeliveryFormValues {
@@ -87,6 +76,7 @@ export function NewDeliveryPage() {
     handleSubmit,
     reset,
     setError,
+    clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<DeliveryFormValues>({
     defaultValues: buildDefaultValues(),
@@ -145,6 +135,7 @@ export function NewDeliveryPage() {
   const onSubmit = handleSubmit(async (formValues) => {
     setSubmitError(null);
     setCreatedDelivery(null);
+    clearErrors("items");
 
     const deliveredAtDate = new Date(formValues.delivered_at);
     if (Number.isNaN(deliveredAtDate.getTime())) {
@@ -160,6 +151,30 @@ export function NewDeliveryPage() {
       quantity: item.quantity.trim(),
     }));
 
+    const selectedProductToIndexes = new Map<string, number[]>();
+    normalizedItems.forEach((item, index) => {
+      if (!item.product_id) {
+        return;
+      }
+      const indexes = selectedProductToIndexes.get(item.product_id) ?? [];
+      indexes.push(index);
+      selectedProductToIndexes.set(item.product_id, indexes);
+    });
+
+    let hasDuplicateProducts = false;
+    selectedProductToIndexes.forEach((indexes) => {
+      if (indexes.length <= 1) {
+        return;
+      }
+      hasDuplicateProducts = true;
+      indexes.forEach((index) => {
+        setError(`items.${index}.product_id`, {
+          type: "manual",
+          message: "No repitas el mismo producto en varias líneas.",
+        });
+      });
+    });
+
     let hasInvalidQuantity = false;
     normalizedItems.forEach((item, index) => {
       const numericQuantity = Number(item.quantity);
@@ -172,7 +187,7 @@ export function NewDeliveryPage() {
       }
     });
 
-    if (hasInvalidQuantity) {
+    if (hasInvalidQuantity || hasDuplicateProducts) {
       return;
     }
 
@@ -210,7 +225,8 @@ export function NewDeliveryPage() {
           <CardHeader>
             <CardTitle className="text-base text-emerald-700">Entrega registrada</CardTitle>
             <CardDescription className="text-emerald-700/80">
-              ID: {createdDelivery.id} · Estado de email: {getEmailStatusLabel(createdDelivery.email_status)}
+              ID: {createdDelivery.id} · Estado de email:{" "}
+              {getDeliveryEmailStatusLabel(createdDelivery.email_status)}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-wrap gap-2">

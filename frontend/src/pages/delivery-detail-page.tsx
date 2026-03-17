@@ -2,56 +2,15 @@ import { deliveriesApi, locationsApi, productsApi } from "@/api";
 import type { DeliveryRead, LocationRead, ProductRead } from "@/api/contracts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  formatDeliveryDateTime,
+  getDeliveryEmailStatusClassName,
+  getDeliveryEmailStatusLabel,
+  getDeliveryPaymentMethodLabel,
+} from "@/features/deliveries/display";
 import { getApiErrorMessage } from "@/lib/errors";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-
-function formatDateTime(value: string): string {
-  return new Intl.DateTimeFormat("es-AR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
-
-function getEmailStatusLabel(status: DeliveryRead["email_status"]): string {
-  if (status === "sent") {
-    return "Enviado";
-  }
-
-  if (status === "failed") {
-    return "Fallido";
-  }
-
-  return "Pendiente";
-}
-
-function getEmailStatusClassName(status: DeliveryRead["email_status"]): string {
-  if (status === "sent") {
-    return "bg-emerald-100 text-emerald-700";
-  }
-
-  if (status === "failed") {
-    return "bg-rose-100 text-rose-700";
-  }
-
-  return "bg-slate-200 text-slate-700";
-}
-
-function getPaymentMethodLabel(value: DeliveryRead["payment_method"]): string {
-  if (value === "cash") {
-    return "Efectivo";
-  }
-
-  if (value === "transfer") {
-    return "Transferencia";
-  }
-
-  if (value === "current_account") {
-    return "Cuenta corriente";
-  }
-
-  return "Otro";
-}
 
 export function DeliveryDetailPage() {
   const navigate = useNavigate();
@@ -165,11 +124,11 @@ export function DeliveryDetailPage() {
           <CardTitle className="flex flex-wrap items-center gap-2 text-lg">
             {location?.name ?? "Ubicación"}
             <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${getEmailStatusClassName(
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${getDeliveryEmailStatusClassName(
                 delivery.email_status,
               )}`}
             >
-              Email: {getEmailStatusLabel(delivery.email_status)}
+              Email: {getDeliveryEmailStatusLabel(delivery.email_status)}
             </span>
           </CardTitle>
           <CardDescription>{location?.address ?? "Sin dirección"}</CardDescription>
@@ -177,11 +136,13 @@ export function DeliveryDetailPage() {
         <CardContent className="grid gap-4 text-sm sm:grid-cols-2">
           <div>
             <p className="font-medium">Fecha y hora</p>
-            <p className="text-muted-foreground">{formatDateTime(delivery.delivered_at)}</p>
+            <p className="text-muted-foreground">{formatDeliveryDateTime(delivery.delivered_at)}</p>
           </div>
           <div>
             <p className="font-medium">Método de pago</p>
-            <p className="text-muted-foreground">{getPaymentMethodLabel(delivery.payment_method)}</p>
+            <p className="text-muted-foreground">
+              {getDeliveryPaymentMethodLabel(delivery.payment_method)}
+            </p>
           </div>
           <div>
             <p className="font-medium">Notas de pago</p>
