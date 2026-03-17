@@ -57,26 +57,69 @@
    - User-visible backend validation/business errors in Spanish.
    - Keep internal enum values and code identifiers in English.
 
-9. **Frontend bootstrap**
+## Frontend Plan
+
+1. **Frontend bootstrap**
    - Initialize React + TypeScript + Vite + Tailwind + React Hook Form + shadcn/ui.
-   - Keep structure simple: `src/pages`, `src/components`, `src/api`, `src/hooks`.
+   - Keep the frontend practical and lightweight.
+   - Create the base structure:
+     - `src/pages`
+     - `src/components`
+     - `src/features`
+     - `src/api`
+     - `src/hooks`
+     - `src/lib`
+   - Reuse backend auth assumptions.
    - Implement cookie-auth API client and protected routing.
 
-10. **Frontend screens**
-   - Login (existing auth).
-   - Locations list + create/edit with embedded Leaflet map picker (no raw lat/lng inputs).
-   - Products list + create/edit.
-   - New delivery form with multiple item rows and payment fields.
-   - Delivery history and delivery detail with email status visibility.
+2. **API contracts first**
+   - Define typed request/response contracts for:
+     - `auth/session`
+     - `locations`
+     - `products`
+     - `deliveries`
+   - Centralize API calls before building pages.
+   - Avoid frontend-only data shapes that drift from backend.
 
-11. **Validation, UX, and reliability**
-   - Add loading/empty/error states.
-   - Keep mobile-friendly operational UX.
-   - Avoid unnecessary frontend abstraction.
+3. **Locations UI**
+   - Build locations list page.
+   - Build create/edit location form.
+   - Use embedded Leaflet map picker.
+   - Support address input + visual point selection.
+   - Do not expose manual `lat/lng` inputs.
 
-12. **Completion and documentation**
-   - Update `.env.example` and README for new variables and run steps.
-   - Validate full Definition of Done from `plan.md`.
+4. **Products UI**
+   - Build products list page.
+   - Build create/edit product form.
+   - Support active/inactive state cleanly.
+
+5. **Delivery UI**
+   - Build the new delivery form as the main operational screen.
+   - Support:
+     - location selection
+     - multiple item rows
+     - product selection
+     - quantity validation
+     - payment method
+     - payment notes
+     - observations
+   - Keep submission flow simple and mobile-friendly.
+
+6. **Delivery history UI**
+   - Build delivery history page.
+   - Build delivery detail page.
+   - Show email status clearly.
+   - Add basic empty/loading/error states.
+
+7. **Validation and UX**
+   - Add loading/empty/error/success states.
+   - Keep operational mobile-first UX.
+   - Avoid unnecessary abstraction and over-engineering.
+   - Keep business logic in backend, not frontend.
+
+8. **Completion and documentation**
+   - Update `.env.example` and `README.md` with frontend/backend variables and run steps.
+   - Validate the frontend against the Definition of Done in `plan.md`.
    - Confirm excluded scope is not implemented.
 
 ## Public API / Interface Changes
