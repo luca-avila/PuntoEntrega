@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -52,6 +53,27 @@ async def create_product(
     return response.json()
 
 
+async def wait_for_delivery_status(
+    client: AsyncClient,
+    delivery_id: str,
+    expected_status: str,
+    *,
+    attempts: int = 10,
+    delay_seconds: float = 0.05,
+) -> dict[str, object]:
+    for _ in range(attempts):
+        response = await client.get(f"/deliveries/{delivery_id}")
+        assert response.status_code == 200
+        payload = response.json()
+        if payload["email_status"] == expected_status:
+            return payload
+        await asyncio.sleep(delay_seconds)
+    raise AssertionError(
+        f"Delivery {delivery_id} did not reach status {expected_status} "
+        f"after {attempts} attempts."
+    )
+
+
 class TestDeliveriesAuth:
     async def test_deliveries_endpoints_require_authentication(self, client: AsyncClient):
         delivery_id = uuid.uuid4()
@@ -92,7 +114,7 @@ class TestDeliveriesCrud:
         delivery_id = created_delivery["id"]
         assert created_delivery["location_id"] == location["id"]
         assert created_delivery["payment_method"] == "transfer"
-        assert created_delivery["email_status"] == "sent"
+        assert created_delivery["email_status"] == "pending"
         assert len(created_delivery["items"]) == 1
 
         list_response = await client.get("/deliveries")
@@ -101,9 +123,7 @@ class TestDeliveriesCrud:
         assert len(listed_deliveries) == 1
         assert listed_deliveries[0]["id"] == delivery_id
 
-        get_response = await client.get(f"/deliveries/{delivery_id}")
-        assert get_response.status_code == 200
-        fetched_delivery = get_response.json()
+        fetched_delivery = await wait_for_delivery_status(client, delivery_id, "sent")
         assert fetched_delivery["id"] == delivery_id
         assert fetched_delivery["items"][0]["product_id"] == product["id"]
 
@@ -139,11 +159,10 @@ class TestDeliveriesCrud:
         )
         assert response.status_code == 201
         delivery = response.json()
-        assert delivery["email_status"] == "failed"
+        assert delivery["email_status"] == "pending"
 
-        persisted_response = await client.get(f"/deliveries/{delivery['id']}")
-        assert persisted_response.status_code == 200
-        assert persisted_response.json()["id"] == delivery["id"]
+        persisted_delivery = await wait_for_delivery_status(client, delivery["id"], "failed")
+        assert persisted_delivery["id"] == delivery["id"]
 
     async def test_create_delivery_requires_items(self, client: AsyncClient):
         user_email = "deliveries-missing-items@example.com"

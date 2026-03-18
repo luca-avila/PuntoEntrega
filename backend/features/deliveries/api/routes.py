@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db import get_async_session
@@ -10,6 +10,7 @@ from features.deliveries.service import (
     create_delivery_for_organization,
     get_delivery_for_organization,
     list_deliveries_for_organization,
+    send_delivery_summary_email_in_background,
 )
 from features.organizations.service import get_current_organization_id
 
@@ -39,14 +40,20 @@ async def list_deliveries(
 @router.post("", response_model=DeliveryRead, status_code=status.HTTP_201_CREATED)
 async def create_delivery(
     payload: DeliveryCreate,
+    background_tasks: BackgroundTasks,
     organization_id: uuid.UUID = Depends(get_current_organization_id),
     session: AsyncSession = Depends(get_async_session),
 ):
-    return await create_delivery_for_organization(
+    delivery = await create_delivery_for_organization(
         session=session,
         organization_id=organization_id,
         payload=payload,
     )
+    background_tasks.add_task(
+        send_delivery_summary_email_in_background,
+        delivery.id,
+    )
+    return delivery
 
 
 @router.get("/{delivery_id}", response_model=DeliveryRead)

@@ -1,11 +1,13 @@
 import uuid
 import logging
+import asyncio
 
 from fastapi import HTTPException, status
 from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from core.db import async_session_maker
 from features.deliveries.email import send_delivery_summary_email
 from features.deliveries.models import Delivery, DeliveryItem, EmailStatus
 from features.deliveries.schemas import DeliveryCreate, DeliveryListFilters
@@ -15,6 +17,10 @@ from features.organizations.service import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+EMAIL_SEND_MAX_ATTEMPTS = 3
+EMAIL_SEND_RETRY_DELAY_SECONDS = 2.0
 
 
 def _delivery_load_options():
@@ -54,23 +60,6 @@ async def _update_email_status(
 ) -> None:
     delivery.email_status = email_status
     await session.commit()
-
-
-async def _update_email_status_safely(
-    session: AsyncSession,
-    delivery: Delivery,
-    email_status: EmailStatus,
-) -> None:
-    try:
-        await _update_email_status(session, delivery, email_status)
-    except Exception as exc:
-        await session.rollback()
-        logger.exception(
-            "Failed to persist delivery email status: delivery_id=%s status=%s error=%s",
-            delivery.id,
-            email_status.value,
-            exc,
-        )
 
 
 async def create_delivery_for_organization(
@@ -114,23 +103,6 @@ async def create_delivery_for_organization(
 
     await session.commit()
 
-    stored_delivery = await get_delivery_for_organization(
-        session=session,
-        organization_id=organization_id,
-        delivery_id=delivery.id,
-    )
-
-    try:
-        await send_delivery_summary_email(stored_delivery)
-        await _update_email_status_safely(session, stored_delivery, EmailStatus.SENT)
-    except Exception as exc:
-        logger.exception(
-            "Failed to send delivery summary email: delivery_id=%s error=%s",
-            stored_delivery.id,
-            exc,
-        )
-        await _update_email_status_safely(session, stored_delivery, EmailStatus.FAILED)
-
     return await get_delivery_for_organization(
         session=session,
         organization_id=organization_id,
@@ -158,3 +130,69 @@ async def get_delivery_for_organization(
             detail="Entrega no encontrada.",
         )
     return delivery
+
+
+async def _get_delivery_or_none(
+    session: AsyncSession,
+    delivery_id: uuid.UUID,
+) -> Delivery | None:
+    result = await session.execute(
+        select(Delivery)
+        .where(
+            Delivery.id == delivery_id,
+        )
+        .options(*_delivery_load_options())
+    )
+    return result.scalar_one_or_none()
+
+
+async def send_delivery_summary_email_in_background(
+    delivery_id: uuid.UUID,
+) -> None:
+    for attempt in range(1, EMAIL_SEND_MAX_ATTEMPTS + 1):
+        async with async_session_maker() as session:
+            delivery = await _get_delivery_or_none(session, delivery_id)
+            if delivery is None:
+                logger.warning(
+                    "Delivery not found during async email dispatch: delivery_id=%s",
+                    delivery_id,
+                )
+                return
+
+            # Idempotency guard: if another attempt already succeeded, do nothing.
+            if delivery.email_status == EmailStatus.SENT:
+                return
+
+            try:
+                await send_delivery_summary_email(delivery)
+                await _update_email_status(session, delivery, EmailStatus.SENT)
+                return
+            except Exception as exc:
+                await session.rollback()
+                logger.exception(
+                    "Delivery summary email attempt failed: delivery_id=%s attempt=%s error=%s",
+                    delivery_id,
+                    attempt,
+                    exc,
+                )
+
+                if attempt >= EMAIL_SEND_MAX_ATTEMPTS:
+                    try:
+                        latest_delivery = await _get_delivery_or_none(session, delivery_id)
+                        if (
+                            latest_delivery is not None
+                            and latest_delivery.email_status != EmailStatus.SENT
+                        ):
+                            await _update_email_status(
+                                session, latest_delivery, EmailStatus.FAILED
+                            )
+                    except Exception as status_exc:
+                        await session.rollback()
+                        logger.exception(
+                            "Failed to persist final failed email status: delivery_id=%s error=%s",
+                            delivery_id,
+                            status_exc,
+                        )
+                    return
+
+        await asyncio.sleep(EMAIL_SEND_RETRY_DELAY_SECONDS)
