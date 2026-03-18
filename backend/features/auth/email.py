@@ -10,6 +10,8 @@ from core.config import settings
 logger = logging.getLogger(__name__)
 
 RESEND_API_URL = "https://api.resend.com/emails"
+VERIFY_EMAIL_PATH = "/verify-email"
+RESET_PASSWORD_PATH = "/reset-password"
 
 
 def _extract_resend_error_detail(raw_body: str) -> str:
@@ -114,7 +116,7 @@ async def _send_email(*, to_email: str, subject: str, html: str) -> None:
 
 async def send_verify_email(to_email: str, token: str) -> None:
     try:
-        verify_url = _build_action_url(settings.VERIFY_PATH, token)
+        verify_url = _build_action_url(VERIFY_EMAIL_PATH, token)
     except ValueError as exc:
         logger.error("Invalid verification URL config: %s", exc)
         return
@@ -131,7 +133,7 @@ async def send_verify_email(to_email: str, token: str) -> None:
 
 async def send_reset_password_email(to_email: str, token: str) -> None:
     try:
-        reset_url = _build_action_url(settings.RESET_PASSWORD_PATH, token)
+        reset_url = _build_action_url(RESET_PASSWORD_PATH, token)
     except ValueError as exc:
         logger.error("Invalid reset-password URL config: %s", exc)
         return
