@@ -297,6 +297,24 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
                 ) : null}
               </div>
 
+              <div className="space-y-2 sm:col-span-2">
+                <Label>Ubicación en mapa</Label>
+                <LocationMapPicker
+                  onSelectPoint={handlePointSelection}
+                  selectedPoint={selectedPoint}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Hacé click en el mapa para marcar el punto exacto.
+                </p>
+                <p className="text-sm">
+                  Punto seleccionado:{" "}
+                  {latitude !== null && longitude !== null
+                    ? `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+                    : "Sin seleccionar"}
+                </p>
+                {mapError ? <p className="text-sm text-destructive">{mapError}</p> : null}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="contact_name">Contacto</Label>
                 <Input id="contact_name" placeholder="Nombre y apellido" {...register("contact_name")} />
@@ -333,24 +351,6 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
                 <Label htmlFor="notes">Notas</Label>
                 <Textarea id="notes" placeholder="Información útil para la entrega." {...register("notes")} />
               </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Ubicación en mapa</Label>
-              <LocationMapPicker
-                onSelectPoint={handlePointSelection}
-                selectedPoint={selectedPoint}
-              />
-              <p className="text-xs text-muted-foreground">
-                Hacé click en el mapa para marcar el punto exacto.
-              </p>
-              <p className="text-sm">
-                Punto seleccionado:{" "}
-                {latitude !== null && longitude !== null
-                  ? `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
-                  : "Sin seleccionar"}
-              </p>
-              {mapError ? <p className="text-sm text-destructive">{mapError}</p> : null}
             </div>
 
             {submitError ? (

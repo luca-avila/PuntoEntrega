@@ -178,11 +178,15 @@ export function NewDeliveryPage() {
     let hasInvalidQuantity = false;
     normalizedItems.forEach((item, index) => {
       const numericQuantity = Number(item.quantity);
-      if (!Number.isFinite(numericQuantity) || numericQuantity <= 0) {
+      if (
+        !Number.isFinite(numericQuantity)
+        || numericQuantity <= 0
+        || !Number.isInteger(numericQuantity)
+      ) {
         hasInvalidQuantity = true;
         setError(`items.${index}.quantity`, {
           type: "manual",
-          message: "La cantidad debe ser mayor a 0.",
+          message: "La cantidad debe ser un entero mayor a 0.",
         });
       }
     });
@@ -421,10 +425,10 @@ export function NewDeliveryPage() {
                         <Label htmlFor={`items.${index}.quantity`}>Cantidad</Label>
                         <Input
                           id={`items.${index}.quantity`}
-                          inputMode="decimal"
-                          min="0.01"
+                          inputMode="numeric"
+                          min="1"
                           placeholder="1"
-                          step="0.01"
+                          step="1"
                           type="number"
                           {...register(`items.${index}.quantity`, {
                             required: "La cantidad es obligatoria.",

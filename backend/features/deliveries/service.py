@@ -56,6 +56,23 @@ async def _update_email_status(
     await session.commit()
 
 
+async def _update_email_status_safely(
+    session: AsyncSession,
+    delivery: Delivery,
+    email_status: EmailStatus,
+) -> None:
+    try:
+        await _update_email_status(session, delivery, email_status)
+    except Exception as exc:
+        await session.rollback()
+        logger.exception(
+            "Failed to persist delivery email status: delivery_id=%s status=%s error=%s",
+            delivery.id,
+            email_status.value,
+            exc,
+        )
+
+
 async def create_delivery_for_organization(
     session: AsyncSession,
     organization_id: uuid.UUID,
@@ -105,14 +122,14 @@ async def create_delivery_for_organization(
 
     try:
         await send_delivery_summary_email(stored_delivery)
-        await _update_email_status(session, stored_delivery, EmailStatus.SENT)
+        await _update_email_status_safely(session, stored_delivery, EmailStatus.SENT)
     except Exception as exc:
         logger.exception(
             "Failed to send delivery summary email: delivery_id=%s error=%s",
             stored_delivery.id,
             exc,
         )
-        await _update_email_status(session, stored_delivery, EmailStatus.FAILED)
+        await _update_email_status_safely(session, stored_delivery, EmailStatus.FAILED)
 
     return await get_delivery_for_organization(
         session=session,
