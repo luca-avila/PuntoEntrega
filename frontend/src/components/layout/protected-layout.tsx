@@ -2,7 +2,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 const navigationItems = [
   { to: "/deliveries/nueva", label: "Nueva entrega" },
@@ -15,6 +15,11 @@ const navigationItems = [
 export function ProtectedLayout() {
   const { user, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const location = useLocation();
+  const isHistoryActive =
+    location.pathname === "/deliveries" ||
+    (location.pathname.startsWith("/deliveries/") &&
+      !location.pathname.startsWith("/deliveries/nueva"));
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -40,14 +45,17 @@ export function ProtectedLayout() {
                 <NavLink
                   key={item.to}
                   to={item.to}
-                  className={({ isActive }) =>
-                    cn(
+                  className={({ isActive }) => {
+                    const isItemActive =
+                      item.to === "/deliveries" ? isHistoryActive : isActive;
+
+                    return cn(
                       "rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                      isActive
+                      isItemActive
                         ? "bg-primary text-primary-foreground"
                         : "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-                    )
-                  }
+                    );
+                  }}
                 >
                   {item.label}
                 </NavLink>
