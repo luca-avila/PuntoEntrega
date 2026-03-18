@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from features.deliveries.models import EmailStatus, PaymentMethod
 
@@ -18,7 +18,17 @@ class DeliveryCreate(BaseModel):
     payment_method: PaymentMethod
     payment_notes: str | None = None
     observations: str | None = None
+    summary_recipient_email: str | None = None
     items: list[DeliveryItemCreate] = Field(min_length=1)
+
+    @field_validator("summary_recipient_email")
+    @classmethod
+    def normalize_summary_recipient_email(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        return normalized or None
 
 
 class DeliveryItemRead(BaseModel):

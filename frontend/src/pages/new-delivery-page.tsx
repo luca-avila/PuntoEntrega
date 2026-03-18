@@ -1,7 +1,6 @@
 import { deliveriesApi, locationsApi, productsApi } from "@/api";
 import type {
   DeliveryCreateRequest,
-  DeliveryRead,
   LocationRead,
   PaymentMethod,
   ProductRead,
@@ -12,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { getDeliveryEmailStatusLabel } from "@/features/deliveries/display";
+import { useAuth } from "@/hooks/use-auth";
 import { getApiErrorMessage } from "@/lib/errors";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -29,6 +28,7 @@ interface DeliveryFormValues {
   payment_method: PaymentMethod;
   payment_notes: string;
   observations: string;
+  summary_recipient_email: string;
   items: DeliveryItemFormValue[];
 }
 
@@ -45,13 +45,14 @@ function getCurrentDatetimeForInput(): string {
   return new Date(now.getTime() - timezoneOffsetMs).toISOString().slice(0, 16);
 }
 
-function buildDefaultValues(): DeliveryFormValues {
+function buildDefaultValues(summaryRecipientEmail = ""): DeliveryFormValues {
   return {
     location_id: "",
     delivered_at: getCurrentDatetimeForInput(),
     payment_method: "cash",
     payment_notes: "",
     observations: "",
+    summary_recipient_email: summaryRecipientEmail,
     items: [{ product_id: "", quantity: "1" }],
   };
 }
@@ -62,19 +63,21 @@ function emptyToNull(value: string): string | null {
 }
 
 export function NewDeliveryPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [locations, setLocations] = useState<LocationRead[]>([]);
   const [activeProducts, setActiveProducts] = useState<ProductRead[]>([]);
   const [isLoadingDependencies, setIsLoadingDependencies] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [createdDelivery, setCreatedDelivery] = useState<DeliveryRead | null>(null);
 
   const {
     register,
     control,
     handleSubmit,
     reset,
+    getValues,
+    setValue,
     setError,
     clearErrors,
     formState: { errors, isSubmitting },
@@ -115,6 +118,13 @@ export function NewDeliveryPage() {
     void loadDependencies();
   }, [loadDependencies]);
 
+  useEffect(() => {
+    const currentSummaryRecipientEmail = getValues("summary_recipient_email").trim();
+    if (!currentSummaryRecipientEmail && user?.email) {
+      setValue("summary_recipient_email", user.email);
+    }
+  }, [getValues, setValue, user?.email]);
+
   const isReadyForDelivery = useMemo(
     () => locations.length > 0 && activeProducts.length > 0,
     [locations.length, activeProducts.length],
@@ -134,7 +144,6 @@ export function NewDeliveryPage() {
 
   const onSubmit = handleSubmit(async (formValues) => {
     setSubmitError(null);
-    setCreatedDelivery(null);
     clearErrors("items");
 
     const deliveredAtDate = new Date(formValues.delivered_at);
@@ -201,13 +210,14 @@ export function NewDeliveryPage() {
       payment_method: formValues.payment_method,
       payment_notes: emptyToNull(formValues.payment_notes),
       observations: emptyToNull(formValues.observations),
+      summary_recipient_email: emptyToNull(formValues.summary_recipient_email),
       items: normalizedItems,
     };
 
     try {
-      const delivery = await deliveriesApi.create(payload);
-      setCreatedDelivery(delivery);
-      reset(buildDefaultValues());
+      await deliveriesApi.create(payload);
+      reset(buildDefaultValues(user?.email ?? ""));
+      navigate("/");
     } catch (error) {
       setSubmitError(
         getApiErrorMessage(error, "No pudimos registrar la entrega. Revisá los datos e intentá nuevamente."),
@@ -223,30 +233,6 @@ export function NewDeliveryPage() {
           Registrá una entrega con ubicación, productos y forma de pago.
         </p>
       </div>
-
-      {createdDelivery ? (
-        <Card className="border-emerald-300 bg-emerald-50/50">
-          <CardHeader>
-            <CardTitle className="text-base text-emerald-700">Entrega registrada</CardTitle>
-            <CardDescription className="text-emerald-700/80">
-              ID: {createdDelivery.id} · Estado de email:{" "}
-              {getDeliveryEmailStatusLabel(createdDelivery.email_status)}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => navigate(`/deliveries/${createdDelivery.id}`)}
-              type="button"
-              variant="outline"
-            >
-              Ver detalle
-            </Button>
-            <Button onClick={() => navigate("/deliveries")} type="button" variant="outline">
-              Ir al historial
-            </Button>
-          </CardContent>
-        </Card>
-      ) : null}
 
       {loadError ? (
         <Card className="border-destructive/40">
@@ -382,6 +368,30 @@ export function NewDeliveryPage() {
                     placeholder="Detalle adicional de la entrega."
                     {...register("observations")}
                   />
+                </div>
+
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="summary_recipient_email">Email para resumen</Label>
+                  <Input
+                    id="summary_recipient_email"
+                    placeholder="ejemplo@dominio.com"
+                    type="email"
+                    {...register("summary_recipient_email", {
+                      pattern: {
+                        value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                        message: "Ingresá un email válido.",
+                      },
+                    })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Podés cambiarlo en cada entrega. Si queda vacío, se usa la configuración por
+                    defecto del sistema.
+                  </p>
+                  {errors.summary_recipient_email ? (
+                    <p className="text-sm text-destructive">
+                      {errors.summary_recipient_email.message}
+                    </p>
+                  ) : null}
                 </div>
               </div>
 

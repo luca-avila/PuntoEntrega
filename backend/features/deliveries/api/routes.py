@@ -52,6 +52,7 @@ async def create_delivery(
     background_tasks.add_task(
         send_delivery_summary_email_in_background,
         delivery.id,
+        payload.summary_recipient_email,
     )
     return delivery
 

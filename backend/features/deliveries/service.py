@@ -148,6 +148,7 @@ async def _get_delivery_or_none(
 
 async def send_delivery_summary_email_in_background(
     delivery_id: uuid.UUID,
+    summary_recipient_email: str | None = None,
 ) -> None:
     for attempt in range(1, EMAIL_SEND_MAX_ATTEMPTS + 1):
         async with async_session_maker() as session:
@@ -164,7 +165,10 @@ async def send_delivery_summary_email_in_background(
                 return
 
             try:
-                await send_delivery_summary_email(delivery)
+                await send_delivery_summary_email(
+                    delivery,
+                    summary_recipient_email=summary_recipient_email,
+                )
                 await _update_email_status(session, delivery, EmailStatus.SENT)
                 return
             except Exception as exc:

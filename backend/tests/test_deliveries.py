@@ -11,7 +11,7 @@ from tests.test_products import build_product_payload
 
 @pytest.fixture(autouse=True)
 def mock_delivery_email_success(monkeypatch: pytest.MonkeyPatch):
-    async def _success_sender(_delivery):
+    async def _success_sender(_delivery, summary_recipient_email=None):
         return None
 
     monkeypatch.setattr(
@@ -127,12 +127,52 @@ class TestDeliveriesCrud:
         assert fetched_delivery["id"] == delivery_id
         assert fetched_delivery["items"][0]["product_id"] == product["id"]
 
+    async def test_create_delivery_uses_summary_recipient_email_override(
+        self,
+        client: AsyncClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ):
+        captured: dict[str, str | None] = {"summary_recipient_email": None}
+
+        async def _capture_sender(_delivery, summary_recipient_email=None):
+            captured["summary_recipient_email"] = summary_recipient_email
+
+        monkeypatch.setattr(
+            "features.deliveries.service.send_delivery_summary_email",
+            _capture_sender,
+        )
+
+        user_email = "deliveries-recipient-override@example.com"
+        await register_user(client, user_email)
+        await mark_user_verified(user_email)
+        await login_user(client, user_email)
+
+        location = await create_location(client)
+        product = await create_product(client)
+        summary_recipient_email = "avisos+entregas@example.com"
+
+        response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": location["id"],
+                "delivered_at": datetime.now(UTC).isoformat(),
+                "payment_method": "cash",
+                "summary_recipient_email": summary_recipient_email,
+                "items": [{"product_id": product["id"], "quantity": "1"}],
+            },
+        )
+        assert response.status_code == 201
+        delivery_id = response.json()["id"]
+
+        await wait_for_delivery_status(client, delivery_id, "sent")
+        assert captured["summary_recipient_email"] == summary_recipient_email
+
     async def test_email_failure_keeps_delivery_and_sets_failed_status(
         self,
         client: AsyncClient,
         monkeypatch: pytest.MonkeyPatch,
     ):
-        async def _failing_sender(_delivery):
+        async def _failing_sender(_delivery, summary_recipient_email=None):
             raise RuntimeError("smtp down")
 
         monkeypatch.setattr(

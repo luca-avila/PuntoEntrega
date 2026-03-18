@@ -15,6 +15,7 @@ export interface DeliveryCreateRequest {
   payment_method: PaymentMethod;
   payment_notes?: string | null;
   observations?: string | null;
+  summary_recipient_email?: string | null;
   items: DeliveryItemCreateRequest[];
 }
 
