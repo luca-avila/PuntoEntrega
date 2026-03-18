@@ -106,6 +106,7 @@ class TestDeliveriesCrud:
                 "payment_method": "transfer",
                 "payment_notes": "Pagado contra entrega.",
                 "observations": "Entregado en depósito.",
+                "summary_recipient_email": "resumen-owner@example.com",
                 "items": [{"product_id": product["id"], "quantity": "3.50"}],
             },
         )
@@ -194,6 +195,7 @@ class TestDeliveriesCrud:
                 "location_id": location["id"],
                 "delivered_at": datetime.now(UTC).isoformat(),
                 "payment_method": "cash",
+                "summary_recipient_email": "resumen-failed@example.com",
                 "items": [{"product_id": product["id"], "quantity": "1"}],
             },
         )
@@ -218,7 +220,28 @@ class TestDeliveriesCrud:
                 "location_id": location["id"],
                 "delivered_at": datetime.now(UTC).isoformat(),
                 "payment_method": "cash",
+                "summary_recipient_email": "resumen-missing-items@example.com",
                 "items": [],
+            },
+        )
+        assert response.status_code == 422
+
+    async def test_create_delivery_requires_summary_recipient_email(self, client: AsyncClient):
+        user_email = "deliveries-missing-recipient@example.com"
+        await register_user(client, user_email)
+        await mark_user_verified(user_email)
+        await login_user(client, user_email)
+
+        location = await create_location(client)
+        product = await create_product(client)
+
+        response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": location["id"],
+                "delivered_at": datetime.now(UTC).isoformat(),
+                "payment_method": "cash",
+                "items": [{"product_id": product["id"], "quantity": "1"}],
             },
         )
         assert response.status_code == 422
@@ -238,6 +261,7 @@ class TestDeliveriesCrud:
                 "location_id": location["id"],
                 "delivered_at": datetime.now(UTC).isoformat(),
                 "payment_method": "cash",
+                "summary_recipient_email": "resumen-invalid-quantity@example.com",
                 "items": [{"product_id": product["id"], "quantity": "0"}],
             },
         )
@@ -262,6 +286,7 @@ class TestDeliveriesCrud:
                 "location_id": first_location["id"],
                 "delivered_at": old_delivery_time.isoformat(),
                 "payment_method": "cash",
+                "summary_recipient_email": "resumen-old@example.com",
                 "items": [{"product_id": product["id"], "quantity": "1"}],
             },
         )
@@ -271,6 +296,7 @@ class TestDeliveriesCrud:
                 "location_id": second_location["id"],
                 "delivered_at": recent_delivery_time.isoformat(),
                 "payment_method": "transfer",
+                "summary_recipient_email": "resumen-recent@example.com",
                 "items": [{"product_id": product["id"], "quantity": "2"}],
             },
         )
@@ -313,6 +339,7 @@ class TestDeliveriesIsolation:
                 "location_id": location_a["id"],
                 "delivered_at": datetime.now(UTC).isoformat(),
                 "payment_method": "cash",
+                "summary_recipient_email": "resumen-org-a@example.com",
                 "items": [{"product_id": product_a["id"], "quantity": "1"}],
             },
         )
@@ -336,6 +363,7 @@ class TestDeliveriesIsolation:
                 "location_id": location_a["id"],
                 "delivered_at": datetime.now(UTC).isoformat(),
                 "payment_method": "cash",
+                "summary_recipient_email": "resumen-org-b-foreign-location@example.com",
                 "items": [{"product_id": product_a["id"], "quantity": "1"}],
             },
         )
@@ -349,6 +377,7 @@ class TestDeliveriesIsolation:
                 "location_id": location_b["id"],
                 "delivered_at": datetime.now(UTC).isoformat(),
                 "payment_method": "cash",
+                "summary_recipient_email": "resumen-org-b-foreign-product@example.com",
                 "items": [{"product_id": product_a["id"], "quantity": "1"}],
             },
         )

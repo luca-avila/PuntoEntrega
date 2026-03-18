@@ -14,8 +14,6 @@ class Settings(BaseSettings):
     VERIFY_PATH: str = "/verify-email"
     RESET_PASSWORD_PATH: str = "/reset-password"
 
-    DELIVERY_SUMMARY_RECIPIENTS: str = ""
-
     PASSWORD_MIN_LENGTH: int = 8
     PASSWORD_REQUIRE_UPPERCASE: bool = True
     PASSWORD_REQUIRE_LOWERCASE: bool = True

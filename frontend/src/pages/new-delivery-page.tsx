@@ -210,7 +210,7 @@ export function NewDeliveryPage() {
       payment_method: formValues.payment_method,
       payment_notes: emptyToNull(formValues.payment_notes),
       observations: emptyToNull(formValues.observations),
-      summary_recipient_email: emptyToNull(formValues.summary_recipient_email),
+      summary_recipient_email: formValues.summary_recipient_email.trim(),
       items: normalizedItems,
     };
 
@@ -377,6 +377,8 @@ export function NewDeliveryPage() {
                     placeholder="ejemplo@dominio.com"
                     type="email"
                     {...register("summary_recipient_email", {
+                      required: "El email para resumen es obligatorio.",
+                      setValueAs: (value: string) => value.trim(),
                       pattern: {
                         value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                         message: "Ingresá un email válido.",
@@ -384,8 +386,7 @@ export function NewDeliveryPage() {
                     })}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Podés cambiarlo en cada entrega. Si queda vacío, se usa la configuración por
-                    defecto del sistema.
+                    Se usa como destinatario del resumen de esta entrega.
                   </p>
                   {errors.summary_recipient_email ? (
                     <p className="text-sm text-destructive">

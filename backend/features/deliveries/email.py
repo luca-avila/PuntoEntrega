@@ -26,19 +26,6 @@ def _payment_method_label_es(payment_method: str) -> str:
     return PAYMENT_METHOD_LABELS_ES.get(payment_method, payment_method)
 
 
-def _parse_recipients(raw_recipients: str) -> list[str]:
-    return [recipient.strip() for recipient in raw_recipients.split(",") if recipient.strip()]
-
-
-def _resolve_recipients(default_recipients_raw: str, summary_recipient_email: str | None) -> list[str]:
-    if summary_recipient_email is not None:
-        normalized_summary_recipient_email = summary_recipient_email.strip()
-        if normalized_summary_recipient_email:
-            return [normalized_summary_recipient_email]
-
-    return _parse_recipients(default_recipients_raw)
-
-
 def _format_quantity(value: Decimal) -> str:
     return f"{value.normalize():f}" if value != value.to_integral() else str(value.to_integral())
 
@@ -74,14 +61,11 @@ def _build_delivery_summary_html(delivery: Delivery) -> str:
 
 async def send_delivery_summary_email(
     delivery: Delivery,
-    summary_recipient_email: str | None = None,
+    summary_recipient_email: str,
 ) -> None:
-    recipients = _resolve_recipients(
-        default_recipients_raw=settings.DELIVERY_SUMMARY_RECIPIENTS,
-        summary_recipient_email=summary_recipient_email,
-    )
-    if not recipients:
-        raise ValueError("No delivery summary recipients configured.")
+    recipient = summary_recipient_email.strip()
+    if not recipient:
+        raise ValueError("summary_recipient_email is required.")
 
     if not settings.RESEND_API_KEY:
         raise ValueError("RESEND_API_KEY is not set.")
@@ -92,7 +76,7 @@ async def send_delivery_summary_email(
     payload = json.dumps(
         {
             "from": settings.EMAIL_FROM,
-            "to": recipients,
+            "to": [recipient],
             "subject": f"Resumen de entrega {delivery.id}",
             "html": _build_delivery_summary_html(delivery),
         }
@@ -109,7 +93,7 @@ async def send_delivery_summary_email(
 
     try:
         await asyncio.to_thread(request.urlopen, req, timeout=10)
-        logger.info("Delivery summary email sent: delivery_id=%s recipients=%s", delivery.id, recipients)
+        logger.info("Delivery summary email sent: delivery_id=%s recipient=%s", delivery.id, recipient)
     except HTTPError as exc:
         raise RuntimeError(f"Resend HTTP error: {exc.code} {exc.reason}") from exc
     except URLError as exc:

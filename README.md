@@ -30,13 +30,12 @@ No implementado (fuera de alcance MVP):
 2. Completar valores obligatorios (`SECRET_KEY`, `RESEND_API_KEY`, `EMAIL_FROM`, etc.).
 
 Variables relevantes:
-- Backend: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `SECRET_KEY`, `CORS_ORIGINS`, `FRONTEND_URL`, `RESEND_API_KEY`, `EMAIL_FROM`, `DELIVERY_SUMMARY_RECIPIENTS`
+- Backend: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `SECRET_KEY`, `CORS_ORIGINS`, `FRONTEND_URL`, `RESEND_API_KEY`, `EMAIL_FROM`
 - Frontend: `VITE_API_BASE_URL`
 
 Ejemplo:
 
 ```env
-DELIVERY_SUMMARY_RECIPIENTS=logistica@empresa.com,facturacion@empresa.com
 VITE_API_BASE_URL=http://127.0.0.1:8002
 ```
 

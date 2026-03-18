@@ -28,7 +28,6 @@ services:
       EMAIL_FROM: ${EMAIL_FROM}
       VERIFY_PATH: ${VERIFY_PATH:-/verify-email}
       RESET_PASSWORD_PATH: ${RESET_PASSWORD_PATH:-/reset-password}
-      DELIVERY_SUMMARY_RECIPIENTS: ${DELIVERY_SUMMARY_RECIPIENTS:-}
     depends_on:
       db:
         condition: service_healthy

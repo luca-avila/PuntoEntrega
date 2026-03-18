@@ -1,10 +1,14 @@
 import uuid
+import re
 from datetime import datetime
 from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from features.deliveries.models import EmailStatus, PaymentMethod
+
+
+EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 
 class DeliveryItemCreate(BaseModel):
@@ -18,17 +22,18 @@ class DeliveryCreate(BaseModel):
     payment_method: PaymentMethod
     payment_notes: str | None = None
     observations: str | None = None
-    summary_recipient_email: str | None = None
+    summary_recipient_email: str
     items: list[DeliveryItemCreate] = Field(min_length=1)
 
     @field_validator("summary_recipient_email")
     @classmethod
-    def normalize_summary_recipient_email(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-
+    def normalize_summary_recipient_email(cls, value: str) -> str:
         normalized = value.strip()
-        return normalized or None
+        if not normalized:
+            raise ValueError("El email destinatario del resumen es obligatorio.")
+        if not EMAIL_PATTERN.fullmatch(normalized):
+            raise ValueError("Ingresá un email destinatario válido.")
+        return normalized
 
 
 class DeliveryItemRead(BaseModel):

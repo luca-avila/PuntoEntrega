@@ -6,7 +6,6 @@ from uuid import uuid4
 from features.deliveries.email import (
     _build_delivery_summary_html,
     _format_delivered_at_for_argentina,
-    _resolve_recipients,
 )
 
 
@@ -44,21 +43,3 @@ def test_delivery_summary_html_uses_human_readable_argentina_datetime():
 
     assert "18/03/2026 16:01 hs (Argentina, UTC-03:00)" in html
     assert "2026-03-18T19:01:00+00:00" not in html
-
-
-def test_resolve_recipients_uses_override_when_provided():
-    recipients = _resolve_recipients(
-        default_recipients_raw="equipo@example.com,ops@example.com",
-        summary_recipient_email="  custom@example.com  ",
-    )
-
-    assert recipients == ["custom@example.com"]
-
-
-def test_resolve_recipients_falls_back_to_default_list():
-    recipients = _resolve_recipients(
-        default_recipients_raw="equipo@example.com,ops@example.com",
-        summary_recipient_email="",
-    )
-
-    assert recipients == ["equipo@example.com", "ops@example.com"]
