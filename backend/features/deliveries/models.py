@@ -65,6 +65,7 @@ class Delivery(Base):
             native_enum=False,
             create_constraint=True,
             validate_strings=True,
+            values_callable=lambda enum_cls: [item.value for item in enum_cls],
         ),
         nullable=False,
     )
@@ -77,6 +78,7 @@ class Delivery(Base):
             native_enum=False,
             create_constraint=True,
             validate_strings=True,
+            values_callable=lambda enum_cls: [item.value for item in enum_cls],
         ),
         nullable=False,
         default=EmailStatus.PENDING,
