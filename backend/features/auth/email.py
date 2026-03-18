@@ -61,6 +61,28 @@ def _build_action_url(path: str, token: str) -> str:
     return f"{base}{route}?{urlencode({'token': token})}"
 
 
+def _build_verify_email_html(verify_url: str) -> str:
+    return (
+        "<p>Hola,</p>"
+        "<p>Gracias por registrarte en PuntoEntrega.</p>"
+        "<p>Para activar tu cuenta, hac&eacute; click en el siguiente enlace:</p>"
+        f"<p><a href=\"{verify_url}\">{verify_url}</a></p>"
+        "<p>Si no creaste esta cuenta, pod&eacute;s ignorar este mensaje.</p>"
+        "<p>&mdash; Equipo PuntoEntrega</p>"
+    )
+
+
+def _build_reset_password_email_html(reset_url: str) -> str:
+    return (
+        "<p>Hola,</p>"
+        "<p>Recibimos una solicitud para restablecer tu contrase&ntilde;a en PuntoEntrega.</p>"
+        "<p>Para crear una nueva contrase&ntilde;a, hac&eacute; click en el siguiente enlace:</p>"
+        f"<p><a href=\"{reset_url}\">{reset_url}</a></p>"
+        "<p>Si no solicitaste este cambio, pod&eacute;s ignorar este mensaje.</p>"
+        "<p>&mdash; Equipo PuntoEntrega</p>"
+    )
+
+
 async def _send_email(*, to_email: str, subject: str, html: str) -> None:
     if not settings.RESEND_API_KEY:
         logger.warning("RESEND_API_KEY is not set. Skipping email send.")
@@ -123,11 +145,8 @@ async def send_verify_email(to_email: str, token: str) -> None:
 
     await _send_email(
         to_email=to_email,
-        subject="Verify your email",
-        html=(
-            "<p>Welcome!</p>"
-            f"<p>Verify your email by clicking <a href=\"{verify_url}\">this link</a>.</p>"
-        ),
+        subject="Activa tu cuenta de PuntoEntrega",
+        html=_build_verify_email_html(verify_url),
     )
 
 
@@ -140,10 +159,6 @@ async def send_reset_password_email(to_email: str, token: str) -> None:
 
     await _send_email(
         to_email=to_email,
-        subject="Reset your password",
-        html=(
-            "<p>We received a password reset request.</p>"
-            f"<p>Reset your password by clicking <a href=\"{reset_url}\">this link</a>.</p>"
-            "<p>If you did not request this, you can ignore this email.</p>"
-        ),
+        subject="Restablece tu clave de PuntoEntrega",
+        html=_build_reset_password_email_html(reset_url),
     )
