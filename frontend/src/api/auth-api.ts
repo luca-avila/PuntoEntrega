@@ -26,6 +26,26 @@ export const authApi = {
     });
   },
 
+  requestPasswordReset(email: string): Promise<void> {
+    return apiRequest<void>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  },
+
+  resetPassword(token: string, password: string): Promise<void> {
+    return apiRequest<void>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  },
+
   login(payload: LoginRequest): Promise<void> {
     const form = new URLSearchParams({
       username: payload.email,

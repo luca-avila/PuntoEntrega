@@ -45,6 +45,7 @@ export function LoginPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const isRegistered = searchParams.get("registered") === "1";
   const isVerified = searchParams.get("verified") === "1";
+  const isPasswordReset = searchParams.get("passwordReset") === "1";
 
   const {
     register,
@@ -96,6 +97,12 @@ export function LoginPage() {
               </p>
             ) : null}
 
+            {isPasswordReset ? (
+              <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700">
+                Contraseña actualizada. Ya podés iniciar sesión.
+              </p>
+            ) : null}
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -130,6 +137,11 @@ export function LoginPage() {
               {errors.password ? (
                 <p className="text-sm text-destructive">{errors.password.message}</p>
               ) : null}
+              <p className="text-right text-sm">
+                <Link className="text-primary underline-offset-4 hover:underline" to="/forgot-password">
+                  Olvidé mi contraseña
+                </Link>
+              </p>
             </div>
 
             {submitError ? (
