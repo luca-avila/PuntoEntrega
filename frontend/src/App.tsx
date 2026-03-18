@@ -11,6 +11,7 @@ import { NewDeliveryPage } from "@/pages/new-delivery-page";
 import { ProductFormPage } from "@/pages/product-form-page";
 import { ProductsListPage } from "@/pages/products-list-page";
 import { RegisterPage } from "@/pages/register-page";
+import { VerifyEmailPage } from "@/pages/verify-email-page";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<ProtectedLayout />}>

@@ -16,6 +16,16 @@ export const authApi = {
     });
   },
 
+  verifyEmail(token: string): Promise<SessionUser> {
+    return apiRequest<SessionUser>("/auth/verify", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+  },
+
   login(payload: LoginRequest): Promise<void> {
     const form = new URLSearchParams({
       username: payload.email,

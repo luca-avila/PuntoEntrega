@@ -44,6 +44,7 @@ export function LoginPage() {
   const { status, login } = useAuth();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const isRegistered = searchParams.get("registered") === "1";
+  const isVerified = searchParams.get("verified") === "1";
 
   const {
     register,
@@ -86,6 +87,12 @@ export function LoginPage() {
             {isRegistered ? (
               <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700">
                 Cuenta creada. Revisá tu correo para verificarla y después iniciá sesión.
+              </p>
+            ) : null}
+
+            {isVerified ? (
+              <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700">
+                Cuenta verificada. Ya podés iniciar sesión.
               </p>
             ) : null}
 
