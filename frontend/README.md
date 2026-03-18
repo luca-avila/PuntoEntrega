@@ -15,6 +15,8 @@ Crear `frontend/.env` (o usar variables exportadas) con:
 VITE_API_BASE_URL=http://127.0.0.1:8002
 ```
 
+Para producción podés partir de `frontend/.env.production.example`.
+
 ## Desarrollo
 
 ```bash
