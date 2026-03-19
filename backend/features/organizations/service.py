@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Iterable
 from typing import Any
 
 from fastapi import Depends, HTTPException, status
@@ -79,13 +80,30 @@ async def ensure_product_belongs_to_organization(
     organization_id: uuid.UUID,
     product_id: uuid.UUID,
 ) -> None:
-    belongs_to_organization = await _resource_belongs_to_organization(
-        session,
-        Product,
-        product_id,
-        organization_id,
+    await ensure_products_belong_to_organization(
+        session=session,
+        organization_id=organization_id,
+        product_ids=[product_id],
     )
-    if not belongs_to_organization:
+
+
+async def ensure_products_belong_to_organization(
+    session: AsyncSession,
+    organization_id: uuid.UUID,
+    product_ids: Iterable[uuid.UUID],
+) -> None:
+    unique_product_ids = tuple(dict.fromkeys(product_ids))
+    if not unique_product_ids:
+        return
+
+    result = await session.execute(
+        select(Product.id).where(
+            Product.organization_id == organization_id,
+            Product.id.in_(unique_product_ids),
+        )
+    )
+    found_product_ids = set(result.scalars().all())
+    if len(found_product_ids) != len(unique_product_ids):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Producto no encontrado.")
 
 
@@ -102,4 +120,3 @@ async def ensure_delivery_belongs_to_organization(
     )
     if not belongs_to_organization:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Entrega no encontrada.")
-

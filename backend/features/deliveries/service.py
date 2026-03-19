@@ -13,7 +13,7 @@ from features.deliveries.models import Delivery, DeliveryItem, EmailStatus
 from features.deliveries.schemas import DeliveryCreate, DeliveryListFilters
 from features.organizations.service import (
     ensure_location_belongs_to_organization,
-    ensure_product_belongs_to_organization,
+    ensure_products_belong_to_organization,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,12 +73,11 @@ async def create_delivery_for_organization(
         location_id=payload.location_id,
     )
 
-    for item in payload.items:
-        await ensure_product_belongs_to_organization(
-            session=session,
-            organization_id=organization_id,
-            product_id=item.product_id,
-        )
+    await ensure_products_belong_to_organization(
+        session=session,
+        organization_id=organization_id,
+        product_ids=(item.product_id for item in payload.items),
+    )
 
     delivery = Delivery(
         organization_id=organization_id,

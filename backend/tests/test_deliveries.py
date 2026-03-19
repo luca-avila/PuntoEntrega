@@ -383,3 +383,42 @@ class TestDeliveriesIsolation:
         )
         assert foreign_product_delivery_response.status_code == 404
         assert foreign_product_delivery_response.json()["detail"] == "Producto no encontrado."
+
+    async def test_create_delivery_rejects_any_foreign_product_in_multi_item_payload(
+        self, client: AsyncClient
+    ):
+        first_email = "deliveries-multi-item-org-a@example.com"
+        second_email = "deliveries-multi-item-org-b@example.com"
+
+        await register_user(client, first_email)
+        await mark_user_verified(first_email)
+        await login_user(client, first_email)
+
+        foreign_product = await create_product(client, name="Producto organización A")
+
+        logout_response = await client.post("/auth/jwt/logout")
+        assert logout_response.status_code in (200, 204)
+
+        await register_user(client, second_email)
+        await mark_user_verified(second_email)
+        await login_user(client, second_email)
+
+        location = await create_location(client, name="Sucursal organización B")
+        own_product = await create_product(client, name="Producto organización B")
+
+        response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": location["id"],
+                "delivered_at": datetime.now(UTC).isoformat(),
+                "payment_method": "cash",
+                "summary_recipient_email": "resumen-multi-item@example.com",
+                "items": [
+                    {"product_id": own_product["id"], "quantity": "1"},
+                    {"product_id": foreign_product["id"], "quantity": "2"},
+                ],
+            },
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"] == "Producto no encontrado."
