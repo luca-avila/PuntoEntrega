@@ -31,16 +31,20 @@ function mapVerificationError(error: unknown): string {
 
 export function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
-  const [status, setStatus] = useState<VerificationStatus>("verifying");
-  const [message, setMessage] = useState("Estamos verificando tu cuenta...");
+  const token = searchParams.get("token");
+  const [status, setStatus] = useState<VerificationStatus>(
+    token ? "verifying" : "error",
+  );
+  const [message, setMessage] = useState(
+    token
+      ? "Estamos verificando tu cuenta..."
+      : "Falta el token de verificación en el enlace.",
+  );
 
   useEffect(() => {
     let isCancelled = false;
-    const token = searchParams.get("token");
 
     if (!token) {
-      setStatus("error");
-      setMessage("Falta el token de verificación en el enlace.");
       return;
     }
 
@@ -64,7 +68,7 @@ export function VerifyEmailPage() {
     return () => {
       isCancelled = true;
     };
-  }, [searchParams]);
+  }, [token]);
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-muted/20 px-4 py-10">

@@ -1,66 +1,22 @@
 import { deliveriesApi, locationsApi, productsApi } from "@/api";
-import type {
-  DeliveryCreateRequest,
-  LocationRead,
-  PaymentMethod,
-  ProductRead,
-} from "@/api/contracts";
+import type { LocationRead, ProductRead } from "@/api/contracts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  buildDefaultDeliveryFormValues,
+  type DeliveryFormValues,
+  PAYMENT_METHOD_OPTIONS,
+  validateDeliveryForm,
+} from "@/features/deliveries/new-delivery-form";
 import { useAuth } from "@/hooks/use-auth";
 import { getApiErrorMessage } from "@/lib/errors";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
-
-interface DeliveryItemFormValue {
-  product_id: string;
-  quantity: string;
-}
-
-interface DeliveryFormValues {
-  location_id: string;
-  delivered_at: string;
-  payment_method: PaymentMethod;
-  payment_notes: string;
-  observations: string;
-  summary_recipient_email: string;
-  items: DeliveryItemFormValue[];
-}
-
-const PAYMENT_METHOD_OPTIONS: Array<{ value: PaymentMethod; label: string }> = [
-  { value: "cash", label: "Efectivo" },
-  { value: "transfer", label: "Transferencia" },
-  { value: "current_account", label: "Cuenta corriente" },
-  { value: "other", label: "Otro" },
-];
-
-function getCurrentDatetimeForInput(): string {
-  const now = new Date();
-  const timezoneOffsetMs = now.getTimezoneOffset() * 60_000;
-  return new Date(now.getTime() - timezoneOffsetMs).toISOString().slice(0, 16);
-}
-
-function buildDefaultValues(summaryRecipientEmail = ""): DeliveryFormValues {
-  return {
-    location_id: "",
-    delivered_at: getCurrentDatetimeForInput(),
-    payment_method: "cash",
-    payment_notes: "",
-    observations: "",
-    summary_recipient_email: summaryRecipientEmail,
-    items: [{ product_id: "", quantity: "1" }],
-  };
-}
-
-function emptyToNull(value: string): string | null {
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
 
 export function NewDeliveryPage() {
   const { user } = useAuth();
@@ -82,7 +38,7 @@ export function NewDeliveryPage() {
     clearErrors,
     formState: { errors, isSubmitting },
   } = useForm<DeliveryFormValues>({
-    defaultValues: buildDefaultValues(),
+    defaultValues: buildDefaultDeliveryFormValues(),
   });
 
   const { fields, append, remove } = useFieldArray({
@@ -144,79 +100,23 @@ export function NewDeliveryPage() {
 
   const onSubmit = handleSubmit(async (formValues) => {
     setSubmitError(null);
-    clearErrors("items");
+    clearErrors(["delivered_at", "items"]);
 
-    const deliveredAtDate = new Date(formValues.delivered_at);
-    if (Number.isNaN(deliveredAtDate.getTime())) {
-      setError("delivered_at", {
+    const validationResult = validateDeliveryForm(formValues);
+    validationResult.issues.forEach((issue) => {
+      setError(issue.field, {
         type: "manual",
-        message: "Ingresá una fecha/hora válida.",
-      });
-      return;
-    }
-
-    const normalizedItems = formValues.items.map((item) => ({
-      product_id: item.product_id,
-      quantity: item.quantity.trim(),
-    }));
-
-    const selectedProductToIndexes = new Map<string, number[]>();
-    normalizedItems.forEach((item, index) => {
-      if (!item.product_id) {
-        return;
-      }
-      const indexes = selectedProductToIndexes.get(item.product_id) ?? [];
-      indexes.push(index);
-      selectedProductToIndexes.set(item.product_id, indexes);
-    });
-
-    let hasDuplicateProducts = false;
-    selectedProductToIndexes.forEach((indexes) => {
-      if (indexes.length <= 1) {
-        return;
-      }
-      hasDuplicateProducts = true;
-      indexes.forEach((index) => {
-        setError(`items.${index}.product_id`, {
-          type: "manual",
-          message: "No repitas el mismo producto en varias líneas.",
-        });
+        message: issue.message,
       });
     });
 
-    let hasInvalidQuantity = false;
-    normalizedItems.forEach((item, index) => {
-      const numericQuantity = Number(item.quantity);
-      if (
-        !Number.isFinite(numericQuantity)
-        || numericQuantity <= 0
-        || !Number.isInteger(numericQuantity)
-      ) {
-        hasInvalidQuantity = true;
-        setError(`items.${index}.quantity`, {
-          type: "manual",
-          message: "La cantidad debe ser un entero mayor a 0.",
-        });
-      }
-    });
-
-    if (hasInvalidQuantity || hasDuplicateProducts) {
+    if (validationResult.payload === null) {
       return;
     }
-
-    const payload: DeliveryCreateRequest = {
-      location_id: formValues.location_id,
-      delivered_at: deliveredAtDate.toISOString(),
-      payment_method: formValues.payment_method,
-      payment_notes: emptyToNull(formValues.payment_notes),
-      observations: emptyToNull(formValues.observations),
-      summary_recipient_email: formValues.summary_recipient_email.trim(),
-      items: normalizedItems,
-    };
 
     try {
-      await deliveriesApi.create(payload);
-      reset(buildDefaultValues(user?.email ?? ""));
+      await deliveriesApi.create(validationResult.payload);
+      reset(buildDefaultDeliveryFormValues(user?.email ?? ""));
       navigate("/");
     } catch (error) {
       setSubmitError(
