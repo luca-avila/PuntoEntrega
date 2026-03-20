@@ -8,6 +8,7 @@ from sqlalchemy.sql.elements import ColumnElement
 
 import features.auth.service as auth_service
 from core.db import async_session_maker
+from core.errors import EmailSendError
 from features.auth.models import User
 from features.organizations.models import Organization
 
@@ -235,6 +236,26 @@ class TestEmailFlows:
         assert sent_calls[0][0] == USER_EMAIL
         assert sent_calls[0][1]
 
+    async def test_register_email_failure_does_not_set_verify_resend_cooldown(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        sent_calls: list[tuple[str, str]] = []
+
+        async def fake_send_verify_email(email: str, token: str) -> None:
+            sent_calls.append((email, token))
+            raise EmailSendError("resend unavailable")
+
+        monkeypatch.setattr(auth_service, "send_verify_email", fake_send_verify_email)
+
+        register_response = await register_user(client)
+        assert register_response.status_code == 201
+        assert len(sent_calls) == 1
+
+        login_response = await login_user(client)
+        assert login_response.status_code == 400
+        assert login_response.json()["detail"] == "LOGIN_USER_NOT_VERIFIED"
+        assert len(sent_calls) == 2
+
     async def test_request_verify_token_sends_email_for_existing_user(
         self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
     ):
@@ -273,6 +294,20 @@ class TestEmailFlows:
         assert len(sent_calls) == 1
         assert sent_calls[0][0] == USER_EMAIL
         assert sent_calls[0][1]
+
+    async def test_forgot_password_email_failure_does_not_fail_endpoint(
+        self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+    ):
+        async def fake_send_reset_password_email(email: str, token: str) -> None:
+            raise EmailSendError("resend unavailable")
+
+        monkeypatch.setattr(auth_service, "send_reset_password_email", fake_send_reset_password_email)
+
+        register_response = await register_user(client)
+        assert register_response.status_code == 201
+
+        response = await client.post("/auth/forgot-password", json={"email": USER_EMAIL})
+        assert response.status_code in (200, 202)
 
     async def test_forgot_password_nonexistent_user_does_not_send_email(
         self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch

@@ -7,6 +7,7 @@ from urllib import request
 from urllib.error import HTTPError, URLError
 
 from core.config import settings
+from core.errors import EmailSendError
 from features.deliveries.models import Delivery
 
 logger = logging.getLogger(__name__)
@@ -20,6 +21,26 @@ PAYMENT_METHOD_LABELS_ES = {
     "current_account": "Cuenta corriente",
     "other": "Otro",
 }
+
+
+def _extract_resend_error_detail(raw_body: str) -> str:
+    if not raw_body:
+        return ""
+    try:
+        payload = json.loads(raw_body)
+    except json.JSONDecodeError:
+        return raw_body
+
+    if isinstance(payload, dict):
+        message = payload.get("message")
+        name = payload.get("name")
+        if isinstance(message, str) and isinstance(name, str):
+            return f"{name}: {message}"
+        if isinstance(message, str):
+            return message
+        if isinstance(name, str):
+            return name
+    return raw_body
 
 
 def _payment_method_label_es(payment_method: str) -> str:
@@ -68,10 +89,10 @@ async def send_delivery_summary_email(
         raise ValueError("summary_recipient_email is required.")
 
     if not settings.RESEND_API_KEY:
-        raise ValueError("RESEND_API_KEY is not set.")
+        raise EmailSendError("RESEND_API_KEY is not set.")
 
     if not settings.EMAIL_FROM:
-        raise ValueError("EMAIL_FROM is not set.")
+        raise EmailSendError("EMAIL_FROM is not set.")
 
     payload = json.dumps(
         {
@@ -95,6 +116,18 @@ async def send_delivery_summary_email(
         await asyncio.to_thread(request.urlopen, req, timeout=10)
         logger.info("Delivery summary email sent: delivery_id=%s recipient=%s", delivery.id, recipient)
     except HTTPError as exc:
-        raise RuntimeError(f"Resend HTTP error: {exc.code} {exc.reason}") from exc
+        body = exc.read().decode("utf-8", errors="ignore")
+        request_id = exc.headers.get("x-request-id", "") if exc.headers else ""
+        detail = _extract_resend_error_detail(body)
+        raise EmailSendError(
+            "Resend HTTP error: "
+            f"status={exc.code} reason={exc.reason} request_id={request_id} "
+            f"detail={detail} from={settings.EMAIL_FROM} to={recipient} "
+            f"subject=Resumen de entrega {delivery.id}"
+        ) from exc
     except URLError as exc:
-        raise RuntimeError(f"Resend network error: {exc.reason}") from exc
+        raise EmailSendError(
+            "Resend network error: "
+            f"reason={exc.reason} from={settings.EMAIL_FROM} to={recipient} "
+            f"subject=Resumen de entrega {delivery.id}"
+        ) from exc

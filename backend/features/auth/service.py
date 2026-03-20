@@ -20,6 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.db import get_async_session
+from core.errors import EmailSendError
 from features.auth.email import send_reset_password_email, send_verify_email
 from features.auth.models import User
 from features.organizations.models import Organization
@@ -202,12 +203,29 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
     async def on_after_forgot_password(self, user: User, token: str, request: Request | None = None):
         """Hook called after password reset request."""
         logger.info("User %s has requested a password reset.", user.id)
-        await send_reset_password_email(user.email, token)
+        try:
+            await send_reset_password_email(user.email, token)
+        except EmailSendError as exc:
+            logger.exception(
+                "Failed to send reset-password email: user_id=%s email=%s error=%s",
+                user.id,
+                user.email,
+                exc,
+            )
 
     async def on_after_request_verify(self, user: User, token: str, request: Request | None = None):
         """Hook called after email verification request."""
         logger.info("User %s has requested email verification.", user.id)
-        await send_verify_email(user.email, token)
+        try:
+            await send_verify_email(user.email, token)
+        except EmailSendError as exc:
+            logger.exception(
+                "Failed to send verification email: user_id=%s email=%s error=%s",
+                user.id,
+                user.email,
+                exc,
+            )
+            return
         mark_verify_email_sent(user.id)
 
 

@@ -6,6 +6,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
 from core.config import settings
+from core.errors import EmailSendError
 
 logger = logging.getLogger(__name__)
 
@@ -85,12 +86,10 @@ def _build_reset_password_email_html(reset_url: str) -> str:
 
 async def _send_email(*, to_email: str, subject: str, html: str) -> None:
     if not settings.RESEND_API_KEY:
-        logger.warning("RESEND_API_KEY is not set. Skipping email send.")
-        return
+        raise EmailSendError("RESEND_API_KEY is not set.")
 
     if not settings.EMAIL_FROM:
-        logger.warning("EMAIL_FROM is not set. Skipping email send.")
-        return
+        raise EmailSendError("EMAIL_FROM is not set.")
 
     payload = json.dumps(
         {
@@ -116,32 +115,24 @@ async def _send_email(*, to_email: str, subject: str, html: str) -> None:
         body = exc.read().decode("utf-8", errors="ignore")
         request_id = exc.headers.get("x-request-id", "") if exc.headers else ""
         detail = _extract_resend_error_detail(body)
-        logger.error(
-            "Failed sending email via Resend: status=%s reason=%s request_id=%s detail=%s from=%s to=%s subject=%s",
-            exc.code,
-            exc.reason,
-            request_id,
-            detail,
-            settings.EMAIL_FROM,
-            to_email,
-            subject,
-        )
+        raise EmailSendError(
+            "Resend HTTP error: "
+            f"status={exc.code} reason={exc.reason} request_id={request_id} "
+            f"detail={detail} from={settings.EMAIL_FROM} to={to_email} subject={subject}"
+        ) from exc
     except URLError as exc:
-        logger.error(
-            "Failed sending email via Resend: network_error=%s from=%s to=%s subject=%s",
-            exc.reason,
-            settings.EMAIL_FROM,
-            to_email,
-            subject,
-        )
+        raise EmailSendError(
+            "Resend network error: "
+            f"reason={exc.reason} from={settings.EMAIL_FROM} to={to_email} "
+            f"subject={subject}"
+        ) from exc
 
 
 async def send_verify_email(to_email: str, token: str) -> None:
     try:
         verify_url = _build_action_url(VERIFY_EMAIL_PATH, token)
     except ValueError as exc:
-        logger.error("Invalid verification URL config: %s", exc)
-        return
+        raise EmailSendError(f"Invalid verification URL config: {exc}") from exc
 
     await _send_email(
         to_email=to_email,
@@ -154,8 +145,7 @@ async def send_reset_password_email(to_email: str, token: str) -> None:
     try:
         reset_url = _build_action_url(RESET_PASSWORD_PATH, token)
     except ValueError as exc:
-        logger.error("Invalid reset-password URL config: %s", exc)
-        return
+        raise EmailSendError(f"Invalid reset-password URL config: {exc}") from exc
 
     await _send_email(
         to_email=to_email,
