@@ -18,7 +18,5 @@ class Settings(BaseSettings):
     PASSWORD_REQUIRE_DIGIT: bool = True
     PASSWORD_REQUIRE_SPECIAL: bool = True
 
-    model_config = SettingsConfigDict()
-
 
 settings = Settings()
