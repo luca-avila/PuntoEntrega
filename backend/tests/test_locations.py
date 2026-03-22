@@ -110,6 +110,48 @@ class TestLocationsCrud:
         assert patch_response.status_code == 422
         assert "Debe enviar al menos un campo" in patch_response.text
 
+    async def test_create_location_rejects_blank_name_or_address(self, client: AsyncClient):
+        user_email = "locations-invalid-text@example.com"
+        await register_user(client, user_email)
+        await mark_user_verified(user_email)
+        await login_user(client, user_email)
+
+        blank_name_payload = build_location_payload()
+        blank_name_payload["name"] = "   "
+        blank_name_response = await client.post("/locations", json=blank_name_payload)
+        assert blank_name_response.status_code == 422
+
+        blank_address_payload = build_location_payload()
+        blank_address_payload["address"] = "   "
+        blank_address_response = await client.post("/locations", json=blank_address_payload)
+        assert blank_address_response.status_code == 422
+
+    async def test_create_location_rejects_invalid_contact_email(self, client: AsyncClient):
+        user_email = "locations-invalid-email@example.com"
+        await register_user(client, user_email)
+        await mark_user_verified(user_email)
+        await login_user(client, user_email)
+
+        payload = build_location_payload()
+        payload["contact_email"] = "email-invalido"
+
+        response = await client.post("/locations", json=payload)
+        assert response.status_code == 422
+        assert "email de contacto válido" in response.text
+
+    async def test_create_location_rejects_invalid_contact_phone(self, client: AsyncClient):
+        user_email = "locations-invalid-phone@example.com"
+        await register_user(client, user_email)
+        await mark_user_verified(user_email)
+        await login_user(client, user_email)
+
+        payload = build_location_payload()
+        payload["contact_phone"] = "abc###"
+
+        response = await client.post("/locations", json=payload)
+        assert response.status_code == 422
+        assert "teléfono de contacto válido" in response.text
+
 
 class TestLocationsIsolation:
     async def test_cannot_access_another_organizations_location(self, client: AsyncClient):

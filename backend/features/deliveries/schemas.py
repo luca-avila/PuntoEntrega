@@ -22,8 +22,20 @@ class DeliveryCreate(BaseModel):
     payment_method: PaymentMethod
     payment_notes: str | None = None
     observations: str | None = None
-    summary_recipient_email: str
+    summary_recipient_email: str = Field(max_length=320)
     items: list[DeliveryItemCreate] = Field(min_length=1)
+
+    @field_validator("payment_notes", "observations", mode="before")
+    @classmethod
+    def normalize_optional_text_fields(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        normalized = value.strip()
+        if not normalized:
+            return None
+
+        return normalized
 
     @field_validator("summary_recipient_email")
     @classmethod
@@ -34,6 +46,17 @@ class DeliveryCreate(BaseModel):
         if not EMAIL_PATTERN.fullmatch(normalized):
             raise ValueError("Ingresá un email destinatario válido.")
         return normalized
+
+    @model_validator(mode="after")
+    def validate_no_duplicate_products(self) -> "DeliveryCreate":
+        seen_product_ids: set[uuid.UUID] = set()
+
+        for item in self.items:
+            if item.product_id in seen_product_ids:
+                raise ValueError("No repitas el mismo producto en varias líneas.")
+            seen_product_ids.add(item.product_id)
+
+        return self
 
 
 class DeliveryItemRead(BaseModel):

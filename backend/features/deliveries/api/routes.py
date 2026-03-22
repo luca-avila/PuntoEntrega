@@ -1,7 +1,8 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db import get_async_session
@@ -25,11 +26,20 @@ async def list_deliveries(
     organization_id: uuid.UUID = Depends(get_current_organization_id),
     session: AsyncSession = Depends(get_async_session),
 ):
-    filters = DeliveryListFilters(
-        location_id=location_id,
-        delivered_from=delivered_from,
-        delivered_to=delivered_to,
-    )
+    try:
+        filters = DeliveryListFilters(
+            location_id=location_id,
+            delivered_from=delivered_from,
+            delivered_to=delivered_to,
+        )
+    except ValidationError as exc:
+        errors = exc.errors(include_input=False, include_url=False)
+        message = errors[0]["msg"] if errors else "Parámetros de búsqueda inválidos."
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=message,
+        ) from exc
+
     return await list_deliveries_for_organization(
         session=session,
         organization_id=organization_id,

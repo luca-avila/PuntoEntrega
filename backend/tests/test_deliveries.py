@@ -267,6 +267,31 @@ class TestDeliveriesCrud:
         )
         assert response.status_code == 422
 
+    async def test_create_delivery_rejects_duplicate_products(self, client: AsyncClient):
+        user_email = "deliveries-duplicate-products@example.com"
+        await register_user(client, user_email)
+        await mark_user_verified(user_email)
+        await login_user(client, user_email)
+
+        location = await create_location(client)
+        product = await create_product(client)
+
+        response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": location["id"],
+                "delivered_at": datetime.now(UTC).isoformat(),
+                "payment_method": "cash",
+                "summary_recipient_email": "resumen-duplicado@example.com",
+                "items": [
+                    {"product_id": product["id"], "quantity": "1"},
+                    {"product_id": product["id"], "quantity": "2"},
+                ],
+            },
+        )
+        assert response.status_code == 422
+        assert "No repitas el mismo producto" in response.text
+
     async def test_list_deliveries_supports_location_and_date_filters(self, client: AsyncClient):
         user_email = "deliveries-filter@example.com"
         await register_user(client, user_email)
@@ -320,6 +345,26 @@ class TestDeliveriesCrud:
         date_filtered_deliveries = date_filtered_response.json()
         assert len(date_filtered_deliveries) == 1
         assert date_filtered_deliveries[0]["location_id"] == second_location["id"]
+
+    async def test_list_deliveries_rejects_invalid_date_range(self, client: AsyncClient):
+        user_email = "deliveries-invalid-date-range@example.com"
+        await register_user(client, user_email)
+        await mark_user_verified(user_email)
+        await login_user(client, user_email)
+
+        delivered_from = datetime(2026, 5, 10, tzinfo=UTC).isoformat()
+        delivered_to = datetime(2026, 5, 1, tzinfo=UTC).isoformat()
+
+        response = await client.get(
+            "/deliveries",
+            params={
+                "delivered_from": delivered_from,
+                "delivered_to": delivered_to,
+            },
+        )
+
+        assert response.status_code == 422
+        assert "La fecha desde debe ser menor o igual a la fecha hasta." in response.text
 
 
 class TestDeliveriesIsolation:

@@ -103,6 +103,18 @@ class TestProductsCrud:
         assert active_products[0]["name"] == "Producto Activo"
         assert active_products[0]["is_active"] is True
 
+    async def test_create_product_rejects_blank_name(self, client: AsyncClient):
+        user_email = "products-invalid-name@example.com"
+        await register_user(client, user_email)
+        await mark_user_verified(user_email)
+        await login_user(client, user_email)
+
+        payload = build_product_payload()
+        payload["name"] = "   "
+
+        response = await client.post("/products", json=payload)
+        assert response.status_code == 422
+
 
 class TestProductsIsolation:
     async def test_cannot_access_another_organizations_product(self, client: AsyncClient):
