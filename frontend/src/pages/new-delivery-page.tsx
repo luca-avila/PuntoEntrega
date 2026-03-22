@@ -165,7 +165,7 @@ export function NewDeliveryPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/locations/nueva")} type="button">
+            <Button onClick={() => navigate("/ubicaciones/nueva")} type="button">
               Crear ubicación
             </Button>
           </CardContent>
@@ -181,7 +181,7 @@ export function NewDeliveryPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/products/nuevo")} type="button">
+            <Button onClick={() => navigate("/productos/nuevo")} type="button">
               Crear producto
             </Button>
           </CardContent>

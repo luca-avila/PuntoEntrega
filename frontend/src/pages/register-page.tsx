@@ -87,7 +87,7 @@ export function RegisterPage() {
         registered: "1",
         email: formValues.email,
       });
-      navigate(`/login?${nextSearch.toString()}`, { replace: true });
+      navigate(`/iniciar-sesion?${nextSearch.toString()}`, { replace: true });
     } catch (error) {
       setSubmitError(mapRegisterErrorToMessage(error));
     }
@@ -177,7 +177,7 @@ export function RegisterPage() {
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
             ¿Ya tenés cuenta?{" "}
-            <Link className="text-primary underline-offset-4 hover:underline" to="/login">
+            <Link className="text-primary underline-offset-4 hover:underline" to="/iniciar-sesion">
               Iniciar sesión
             </Link>
           </p>

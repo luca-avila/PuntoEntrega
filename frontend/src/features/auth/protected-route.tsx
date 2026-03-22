@@ -14,7 +14,7 @@ export function ProtectedRoute() {
   }
 
   if (status !== "authenticated") {
-    return <Navigate replace to="/login" state={{ from: location }} />;
+    return <Navigate replace to="/iniciar-sesion" state={{ from: location }} />;
   }
 
   return <Outlet />;

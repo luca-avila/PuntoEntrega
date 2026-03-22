@@ -94,7 +94,7 @@ export function ForgotPasswordPage() {
           </form>
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
-            <Link className="text-primary underline-offset-4 hover:underline" to="/login">
+            <Link className="text-primary underline-offset-4 hover:underline" to="/iniciar-sesion">
               Volver a iniciar sesión
             </Link>
           </p>

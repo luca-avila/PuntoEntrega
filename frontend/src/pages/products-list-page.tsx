@@ -59,7 +59,7 @@ export function ProductsListPage() {
             Administrá el catálogo de productos de tu organización.
           </p>
         </div>
-        <Button onClick={() => navigate("/products/nuevo")}>Nuevo producto</Button>
+        <Button onClick={() => navigate("/productos/nuevo")}>Nuevo producto</Button>
       </div>
 
       <Card>
@@ -106,7 +106,7 @@ export function ProductsListPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/products/nuevo")}>Crear producto</Button>
+            <Button onClick={() => navigate("/productos/nuevo")}>Crear producto</Button>
           </CardContent>
         </Card>
       ) : null}
@@ -139,7 +139,7 @@ export function ProductsListPage() {
                 <CardDescription>{product.description || "Sin descripción"}</CardDescription>
               </CardHeader>
               <CardContent className="flex justify-end">
-                <Button onClick={() => navigate(`/products/${product.id}/editar`)} variant="outline">
+                <Button onClick={() => navigate(`/productos/${product.id}/editar`)} variant="outline">
                   Editar
                 </Button>
               </CardContent>

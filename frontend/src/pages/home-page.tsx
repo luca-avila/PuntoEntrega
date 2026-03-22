@@ -14,7 +14,7 @@ export function HomePage() {
         <CardContent className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <Link
             className="rounded-md border p-4 transition-colors hover:bg-muted"
-            to="/deliveries/nueva"
+            to="/entregas/nueva"
           >
             <p className="font-medium">Nueva entrega</p>
             <p className="text-muted-foreground">
@@ -24,7 +24,7 @@ export function HomePage() {
 
           <Link
             className="rounded-md border p-4 transition-colors hover:bg-muted"
-            to="/deliveries"
+            to="/entregas"
           >
             <p className="font-medium">Historial</p>
             <p className="text-muted-foreground">
@@ -34,7 +34,7 @@ export function HomePage() {
 
           <Link
             className="rounded-md border p-4 transition-colors hover:bg-muted"
-            to="/locations"
+            to="/ubicaciones"
           >
             <p className="font-medium">Ubicaciones</p>
             <p className="text-muted-foreground">
@@ -44,7 +44,7 @@ export function HomePage() {
 
           <Link
             className="rounded-md border p-4 transition-colors hover:bg-muted"
-            to="/products"
+            to="/productos"
           >
             <p className="font-medium">Productos</p>
             <p className="text-muted-foreground">

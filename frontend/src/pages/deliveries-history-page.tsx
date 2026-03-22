@@ -259,7 +259,7 @@ export function DeliveriesHistoryPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/deliveries/nueva")} type="button">
+            <Button onClick={() => navigate("/entregas/nueva")} type="button">
               Nueva entrega
             </Button>
           </CardContent>
@@ -294,7 +294,7 @@ export function DeliveriesHistoryPage() {
                     <p>{getItemsSummary(delivery, productsById)}</p>
                   </div>
                   <Button
-                    onClick={() => navigate(`/deliveries/${delivery.id}`)}
+                    onClick={() => navigate(`/entregas/${delivery.id}`)}
                     type="button"
                     variant="outline"
                   >

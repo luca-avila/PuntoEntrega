@@ -83,7 +83,7 @@ export function DeliveryDetailPage() {
           <Button onClick={() => void loadDeliveryDetail()} type="button" variant="outline">
             Reintentar
           </Button>
-          <Button onClick={() => navigate("/deliveries")} type="button" variant="outline">
+          <Button onClick={() => navigate("/entregas")} type="button" variant="outline">
             Volver al historial
           </Button>
         </CardContent>
@@ -110,10 +110,10 @@ export function DeliveryDetailPage() {
         </div>
 
         <div className="flex gap-2">
-          <Button onClick={() => navigate("/deliveries")} type="button" variant="outline">
+          <Button onClick={() => navigate("/entregas")} type="button" variant="outline">
             Historial
           </Button>
-          <Button onClick={() => navigate("/deliveries/nueva")} type="button" variant="outline">
+          <Button onClick={() => navigate("/entregas/nueva")} type="button" variant="outline">
             Nueva entrega
           </Button>
         </div>

@@ -106,7 +106,7 @@ export function ProductFormPage({ mode }: ProductFormPageProps) {
         await productsApi.create(basePayload);
       }
 
-      navigate("/products", { replace: true });
+      navigate("/productos", { replace: true });
     } catch (error) {
       setSubmitError(
         getApiErrorMessage(error, "No pudimos guardar el producto. Revisá los datos e intentá nuevamente."),
@@ -195,7 +195,7 @@ export function ProductFormPage({ mode }: ProductFormPageProps) {
 
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button
-                onClick={() => navigate("/products")}
+                onClick={() => navigate("/productos")}
                 type="button"
                 variant="outline"
               >

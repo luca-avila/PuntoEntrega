@@ -5,10 +5,10 @@ import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 const navigationItems = [
-  { to: "/deliveries/nueva", label: "Nueva entrega" },
-  { to: "/deliveries", label: "Historial" },
-  { to: "/locations", label: "Ubicaciones" },
-  { to: "/products", label: "Productos" },
+  { to: "/entregas/nueva", label: "Nueva entrega" },
+  { to: "/entregas", label: "Historial" },
+  { to: "/ubicaciones", label: "Ubicaciones" },
+  { to: "/productos", label: "Productos" },
   { to: "/", label: "Inicio" },
 ];
 
@@ -17,9 +17,9 @@ export function ProtectedLayout() {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const location = useLocation();
   const isHistoryActive =
-    location.pathname === "/deliveries" ||
-    (location.pathname.startsWith("/deliveries/") &&
-      !location.pathname.startsWith("/deliveries/nueva"));
+    location.pathname === "/entregas" ||
+    (location.pathname.startsWith("/entregas/") &&
+      !location.pathname.startsWith("/entregas/nueva"));
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -47,7 +47,7 @@ export function ProtectedLayout() {
                   to={item.to}
                   className={({ isActive }) => {
                     const isItemActive =
-                      item.to === "/deliveries" ? isHistoryActive : isActive;
+                      item.to === "/entregas" ? isHistoryActive : isActive;
 
                     return cn(
                       "rounded-md px-3 py-2 text-sm font-medium transition-colors",

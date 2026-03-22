@@ -76,7 +76,7 @@ export function ResetPasswordPage() {
 
     try {
       await authApi.resetPassword(token, formValues.password);
-      navigate("/login?passwordReset=1", { replace: true });
+      navigate("/iniciar-sesion?passwordReset=1", { replace: true });
     } catch (error) {
       setSubmitError(mapResetPasswordErrorToMessage(error));
     }
@@ -98,7 +98,7 @@ export function ResetPasswordPage() {
                 El enlace es inválido porque no contiene token.
               </p>
               <p className="text-center text-sm text-muted-foreground">
-                <Link className="text-primary underline-offset-4 hover:underline" to="/forgot-password">
+                <Link className="text-primary underline-offset-4 hover:underline" to="/recuperar-contrasena">
                   Solicitar nuevo enlace
                 </Link>
               </p>

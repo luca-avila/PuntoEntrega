@@ -38,7 +38,7 @@ export function LocationsListPage() {
             Administrá los puntos físicos de entrega de tu organización.
           </p>
         </div>
-        <Button onClick={() => navigate("/locations/nueva")}>Nueva ubicación</Button>
+        <Button onClick={() => navigate("/ubicaciones/nueva")}>Nueva ubicación</Button>
       </div>
 
       {errorMessage ? (
@@ -70,7 +70,7 @@ export function LocationsListPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/locations/nueva")}>Crear ubicación</Button>
+            <Button onClick={() => navigate("/ubicaciones/nueva")}>Crear ubicación</Button>
           </CardContent>
         </Card>
       ) : null}
@@ -94,7 +94,7 @@ export function LocationsListPage() {
                   </p>
                 </div>
                 <Button
-                  onClick={() => navigate(`/locations/${location.id}/editar`)}
+                  onClick={() => navigate(`/ubicaciones/${location.id}/editar`)}
                   variant="outline"
                 >
                   Editar

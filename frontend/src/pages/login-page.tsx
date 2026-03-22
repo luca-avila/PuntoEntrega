@@ -138,7 +138,7 @@ export function LoginPage() {
                 <p className="text-sm text-destructive">{errors.password.message}</p>
               ) : null}
               <p className="text-right text-sm">
-                <Link className="text-primary underline-offset-4 hover:underline" to="/forgot-password">
+                <Link className="text-primary underline-offset-4 hover:underline" to="/recuperar-contrasena">
                   Olvidé mi contraseña
                 </Link>
               </p>
@@ -157,7 +157,7 @@ export function LoginPage() {
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
             ¿No tenés cuenta?{" "}
-            <Link className="text-primary underline-offset-4 hover:underline" to="/register">
+            <Link className="text-primary underline-offset-4 hover:underline" to="/registro">
               Crear cuenta
             </Link>
           </p>

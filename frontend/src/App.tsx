@@ -21,37 +21,37 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/iniciar-sesion" element={<LoginPage />} />
+          <Route path="/registro" element={<RegisterPage />} />
+          <Route path="/recuperar-contrasena" element={<ForgotPasswordPage />} />
+          <Route path="/restablecer-contrasena" element={<ResetPasswordPage />} />
+          <Route path="/verificar-email" element={<VerifyEmailPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<ProtectedLayout />}>
               <Route path="/" element={<HomePage />} />
 
-              <Route path="/deliveries" element={<DeliveriesHistoryPage />} />
-              <Route path="/deliveries/nueva" element={<NewDeliveryPage />} />
-              <Route path="/deliveries/:deliveryId" element={<DeliveryDetailPage />} />
+              <Route path="/entregas" element={<DeliveriesHistoryPage />} />
+              <Route path="/entregas/nueva" element={<NewDeliveryPage />} />
+              <Route path="/entregas/:deliveryId" element={<DeliveryDetailPage />} />
 
-              <Route path="/locations" element={<LocationsListPage />} />
+              <Route path="/ubicaciones" element={<LocationsListPage />} />
               <Route
-                path="/locations/nueva"
+                path="/ubicaciones/nueva"
                 element={<LocationFormPage mode="create" />}
               />
               <Route
-                path="/locations/:locationId/editar"
+                path="/ubicaciones/:locationId/editar"
                 element={<LocationFormPage mode="edit" />}
               />
 
-              <Route path="/products" element={<ProductsListPage />} />
+              <Route path="/productos" element={<ProductsListPage />} />
               <Route
-                path="/products/nuevo"
+                path="/productos/nuevo"
                 element={<ProductFormPage mode="create" />}
               />
               <Route
-                path="/products/:productId/editar"
+                path="/productos/:productId/editar"
                 element={<ProductFormPage mode="edit" />}
               />
             </Route>

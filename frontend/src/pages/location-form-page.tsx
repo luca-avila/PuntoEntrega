@@ -210,7 +210,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
         await locationsApi.create(basePayload);
       }
 
-      navigate("/locations", { replace: true });
+      navigate("/ubicaciones", { replace: true });
     } catch (error) {
       setSubmitError(
         getApiErrorMessage(error, "No pudimos guardar la ubicación. Revisá los datos e intentá nuevamente."),
@@ -361,7 +361,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
 
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button
-                onClick={() => navigate("/locations")}
+                onClick={() => navigate("/ubicaciones")}
                 type="button"
                 variant="outline"
               >
