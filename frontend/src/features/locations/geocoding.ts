@@ -1,15 +1,37 @@
 const NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org";
+const ARGENTINA_COUNTRY_CODE = "ar";
 
 interface SearchNominatimItem {
   display_name?: string;
   lat?: string;
   lon?: string;
+  address?: NominatimAddress;
 }
 
 interface ReverseNominatimItem {
   display_name?: string;
   lat?: string;
   lon?: string;
+  address?: NominatimAddress;
+}
+
+interface NominatimAddress {
+  country_code?: string;
+  house_number?: string;
+  road?: string;
+  pedestrian?: string;
+  footway?: string;
+  street?: string;
+  suburb?: string;
+  neighbourhood?: string;
+  city_district?: string;
+  city?: string;
+  town?: string;
+  village?: string;
+  hamlet?: string;
+  municipality?: string;
+  county?: string;
+  state?: string;
 }
 
 interface NominatimRequestOptions {
@@ -29,6 +51,112 @@ function parseCoordinate(value: string | undefined): number | null {
 
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function firstNonEmpty(values: Array<string | undefined>): string | null {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) {
+      return trimmed;
+    }
+  }
+
+  return null;
+}
+
+function compactDisplayName(displayName: string | undefined): string | null {
+  if (!displayName) {
+    return null;
+  }
+
+  const parts = displayName
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  return parts.slice(0, 2).join(", ");
+}
+
+function buildStreetLabel(address?: NominatimAddress): string | null {
+  if (!address) {
+    return null;
+  }
+
+  const street = firstNonEmpty([
+    address.road,
+    address.pedestrian,
+    address.footway,
+    address.street,
+  ]);
+  const houseNumber = address.house_number?.trim() ?? "";
+
+  if (street && houseNumber) {
+    return `${street} ${houseNumber}`;
+  }
+
+  if (street) {
+    return street;
+  }
+
+  if (houseNumber) {
+    return houseNumber;
+  }
+
+  return null;
+}
+
+function buildLocalityLabel(address?: NominatimAddress): string | null {
+  if (!address) {
+    return null;
+  }
+
+  return firstNonEmpty([
+    address.city,
+    address.town,
+    address.village,
+    address.hamlet,
+    address.municipality,
+    address.suburb,
+    address.neighbourhood,
+    address.city_district,
+    address.county,
+    address.state,
+  ]);
+}
+
+function buildCompactAddressLabel(
+  displayName: string | undefined,
+  address?: NominatimAddress,
+): string | null {
+  const streetLabel = buildStreetLabel(address);
+  const localityLabel = buildLocalityLabel(address);
+
+  if (streetLabel && localityLabel) {
+    return `${streetLabel}, ${localityLabel}`;
+  }
+
+  if (streetLabel) {
+    return streetLabel;
+  }
+
+  if (localityLabel) {
+    return localityLabel;
+  }
+
+  return compactDisplayName(displayName);
+}
+
+function isArgentinaAddress(address?: NominatimAddress): boolean {
+  const countryCode = address?.country_code?.toLowerCase();
+  if (!countryCode) {
+    return true;
+  }
+
+  return countryCode === ARGENTINA_COUNTRY_CODE;
 }
 
 async function fetchNominatimJson<T>(
@@ -57,13 +185,19 @@ function normalizeSearchResults(results: SearchNominatimItem[]): GeocodingSugges
     .map((item) => {
       const latitude = parseCoordinate(item.lat);
       const longitude = parseCoordinate(item.lon);
+      const displayName = buildCompactAddressLabel(item.display_name, item.address);
 
-      if (!item.display_name || latitude === null || longitude === null) {
+      if (
+        !displayName ||
+        latitude === null ||
+        longitude === null ||
+        !isArgentinaAddress(item.address)
+      ) {
         return null;
       }
 
       return {
-        displayName: item.display_name,
+        displayName,
         latitude,
         longitude,
       };
@@ -85,7 +219,9 @@ export async function searchAddressSuggestions(
     {
       q: trimmedQuery,
       limit: String(options.limit ?? 5),
-      addressdetails: "0",
+      addressdetails: "1",
+      countrycodes: ARGENTINA_COUNTRY_CODE,
+      "accept-language": "es",
     },
     options,
   );
@@ -111,13 +247,19 @@ export async function reverseGeocodeCoordinates(
 
   const parsedLatitude = parseCoordinate(response.lat);
   const parsedLongitude = parseCoordinate(response.lon);
+  const displayName = buildCompactAddressLabel(response.display_name, response.address);
 
-  if (!response.display_name || parsedLatitude === null || parsedLongitude === null) {
+  if (
+    !displayName ||
+    parsedLatitude === null ||
+    parsedLongitude === null ||
+    !isArgentinaAddress(response.address)
+  ) {
     return null;
   }
 
   return {
-    displayName: response.display_name,
+    displayName,
     latitude: parsedLatitude,
     longitude: parsedLongitude,
   };
