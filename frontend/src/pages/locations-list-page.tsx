@@ -89,9 +89,6 @@ export function LocationsListPage() {
                     Contacto: {location.contact_name ?? "Sin contacto"}
                     {location.contact_phone ? ` · ${location.contact_phone}` : ""}
                   </p>
-                  <p>
-                    Coordenadas: {location.latitude.toFixed(5)}, {location.longitude.toFixed(5)}
-                  </p>
                 </div>
                 <Button
                   onClick={() => navigate(`/ubicaciones/${location.id}/editar`)}

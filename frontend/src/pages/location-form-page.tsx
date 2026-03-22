@@ -96,8 +96,6 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
     defaultValues: DEFAULT_VALUES,
   });
 
-  const latitude = watch("latitude");
-  const longitude = watch("longitude");
   const address = watch("address");
 
   const pageTitle = useMemo(
@@ -366,7 +364,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
         <CardHeader>
           <CardTitle className="text-lg">Datos de la ubicación</CardTitle>
           <CardDescription>
-            Las coordenadas se guardan al seleccionar el punto en el mapa.
+            Marcá el punto exacto en el mapa para ubicar mejor la dirección.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -457,10 +455,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
                   Hacé click en el mapa para marcar el punto exacto. La dirección se completa automáticamente.
                 </p>
                 <p className="text-sm">
-                  Punto seleccionado:{" "}
-                  {latitude !== null && longitude !== null
-                    ? `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
-                    : "Sin seleccionar"}
+                  Punto en mapa: {selectedPoint ? "marcado" : "sin marcar"}
                 </p>
                 {mapError ? <p className="text-sm text-destructive">{mapError}</p> : null}
               </div>
