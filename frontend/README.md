@@ -30,3 +30,7 @@ npm run dev
 npm run lint
 npm run build
 ```
+
+## Documentación visual
+
+- Guía del sistema visual: `frontend/docs/visual-system.md`
