@@ -8,11 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  reverseGeocodeCoordinates,
+  searchAddressSuggestions,
+  type GeocodingSuggestion,
+} from "@/features/locations/geocoding";
 import { Textarea } from "@/components/ui/textarea";
 import { LocationMapPicker } from "@/features/locations/location-map-picker";
 import { getApiErrorMessage } from "@/lib/errors";
 import type { LatLngLiteral } from "leaflet";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -31,11 +36,6 @@ interface LocationFormPageProps {
   mode: "create" | "edit";
 }
 
-interface NominatimResult {
-  lat: string;
-  lon: string;
-}
-
 const DEFAULT_VALUES: LocationFormValues = {
   name: "",
   address: "",
@@ -46,6 +46,9 @@ const DEFAULT_VALUES: LocationFormValues = {
   latitude: null,
   longitude: null,
 };
+
+const MIN_ADDRESS_QUERY_LENGTH = 3;
+const ADDRESS_SUGGESTIONS_DEBOUNCE_MS = 350;
 
 function emptyToNull(value: string): string | null {
   const trimmed = value.trim();
@@ -74,6 +77,11 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
   const [mapError, setMapError] = useState<string | null>(null);
   const [isLocatingAddress, setIsLocatingAddress] = useState(false);
   const [selectedPoint, setSelectedPoint] = useState<LatLngLiteral | null>(null);
+  const [isAddressInputFocused, setIsAddressInputFocused] = useState(false);
+  const [isSearchingAddressSuggestions, setIsSearchingAddressSuggestions] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState<GeocodingSuggestion[]>([]);
+  const addressSuggestionsAbortRef = useRef<AbortController | null>(null);
+  const reverseGeocodeAbortRef = useRef<AbortController | null>(null);
 
   const {
     register,
@@ -90,11 +98,26 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
 
   const latitude = watch("latitude");
   const longitude = watch("longitude");
+  const address = watch("address");
 
   const pageTitle = useMemo(
     () => (mode === "create" ? "Nueva ubicación" : "Editar ubicación"),
     [mode],
   );
+
+  const {
+    onBlur: onAddressFieldBlur,
+    ...addressFieldRegistration
+  } = register("address", {
+    required: "La dirección es obligatoria.",
+    validate: (value) =>
+      value.trim().length > 0 || "La dirección no puede estar vacía.",
+  });
+
+  const showAddressSuggestions =
+    isAddressInputFocused &&
+    address.trim().length >= MIN_ADDRESS_QUERY_LENGTH &&
+    (isSearchingAddressSuggestions || addressSuggestions.length > 0);
 
   useEffect(() => {
     if (mode !== "edit" || !locationId) {
@@ -122,16 +145,122 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
     void loadLocation();
   }, [mode, locationId, reset]);
 
-  const handlePointSelection = (point: LatLngLiteral) => {
+  useEffect(() => {
+    return () => {
+      addressSuggestionsAbortRef.current?.abort();
+      reverseGeocodeAbortRef.current?.abort();
+    };
+  }, []);
+
+  useEffect(() => {
+    const query = address.trim();
+
+    if (!isAddressInputFocused || query.length < MIN_ADDRESS_QUERY_LENGTH) {
+      addressSuggestionsAbortRef.current?.abort();
+      setAddressSuggestions([]);
+      setIsSearchingAddressSuggestions(false);
+      return;
+    }
+
+    const debounceTimer = window.setTimeout(() => {
+      addressSuggestionsAbortRef.current?.abort();
+      const controller = new AbortController();
+      addressSuggestionsAbortRef.current = controller;
+
+      setIsSearchingAddressSuggestions(true);
+
+      void searchAddressSuggestions(query, {
+        limit: 5,
+        signal: controller.signal,
+      })
+        .then((results) => {
+          setAddressSuggestions(results);
+        })
+        .catch((error: unknown) => {
+          if (error instanceof DOMException && error.name === "AbortError") {
+            return;
+          }
+          setAddressSuggestions([]);
+        })
+        .finally(() => {
+          if (addressSuggestionsAbortRef.current === controller) {
+            setIsSearchingAddressSuggestions(false);
+          }
+        });
+    }, ADDRESS_SUGGESTIONS_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(debounceTimer);
+    };
+  }, [address, isAddressInputFocused]);
+
+  const applyPointSelection = (point: LatLngLiteral) => {
     setSelectedPoint(point);
     setMapError(null);
     setValue("latitude", Number(point.lat.toFixed(6)), { shouldValidate: true });
     setValue("longitude", Number(point.lng.toFixed(6)), { shouldValidate: true });
   };
 
+  const autoFillAddressFromCoordinates = async (point: LatLngLiteral) => {
+    reverseGeocodeAbortRef.current?.abort();
+    const controller = new AbortController();
+    reverseGeocodeAbortRef.current = controller;
+
+    setIsLocatingAddress(true);
+    setMapError(null);
+
+    try {
+      const geocodedAddress = await reverseGeocodeCoordinates(point.lat, point.lng, {
+        signal: controller.signal,
+      });
+
+      if (!geocodedAddress) {
+        setMapError(
+          "Pudimos guardar el punto en el mapa, pero no encontramos una dirección para esas coordenadas.",
+        );
+        return;
+      }
+
+      setValue("address", geocodedAddress.displayName, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
+      }
+
+      setMapError(
+        "Pudimos guardar el punto en el mapa, pero falló la búsqueda automática de la dirección.",
+      );
+    } finally {
+      if (reverseGeocodeAbortRef.current === controller) {
+        setIsLocatingAddress(false);
+      }
+    }
+  };
+
+  const handlePointSelection = (point: LatLngLiteral) => {
+    applyPointSelection(point);
+    void autoFillAddressFromCoordinates(point);
+  };
+
+  const handleAddressSuggestionSelection = (suggestion: GeocodingSuggestion) => {
+    setValue("address", suggestion.displayName, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    applyPointSelection({
+      lat: suggestion.latitude,
+      lng: suggestion.longitude,
+    });
+    setAddressSuggestions([]);
+    setIsAddressInputFocused(false);
+  };
+
   const handleAddressLookup = async () => {
-    const address = getValues("address").trim();
-    if (!address) {
+    const addressQuery = getValues("address").trim();
+    if (!addressQuery) {
       setMapError("Ingresá una dirección antes de buscar en el mapa.");
       return;
     }
@@ -140,20 +269,10 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
     setMapError(null);
 
     try {
-      const query = new URLSearchParams({
-        format: "jsonv2",
-        limit: "1",
-        q: address,
+      const results = await searchAddressSuggestions(addressQuery, {
+        limit: 1,
       });
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?${query.toString()}`,
-      );
 
-      if (!response.ok) {
-        throw new Error("No se pudo consultar Nominatim");
-      }
-
-      const results = (await response.json()) as NominatimResult[];
       if (results.length === 0) {
         setMapError(
           "No encontramos la dirección. Ajustá el texto o seleccioná manualmente en el mapa.",
@@ -162,15 +281,11 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
       }
 
       const firstResult = results[0];
-      const lat = Number(firstResult.lat);
-      const lng = Number(firstResult.lon);
-
-      if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-        setMapError("La búsqueda devolvió coordenadas inválidas.");
-        return;
-      }
-
-      handlePointSelection({ lat, lng });
+      setValue("address", firstResult.displayName, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      applyPointSelection({ lat: firstResult.latitude, lng: firstResult.longitude });
     } catch {
       setMapError("No pudimos ubicar la dirección. Probá de nuevo o marcá el punto manualmente.");
     } finally {
@@ -273,16 +388,51 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
 
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="address">Dirección</Label>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <Input
-                    id="address"
-                    placeholder="Av. Corrientes 1234, CABA"
-                    {...register("address", {
-                      required: "La dirección es obligatoria.",
-                      validate: (value) =>
-                        value.trim().length > 0 || "La dirección no puede estar vacía.",
-                    })}
-                  />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start">
+                  <div className="relative flex-1">
+                    <Input
+                      autoComplete="off"
+                      id="address"
+                      onBlur={(event) => {
+                        onAddressFieldBlur(event);
+                        window.setTimeout(() => {
+                          setIsAddressInputFocused(false);
+                        }, 120);
+                      }}
+                      onFocus={() => {
+                        setIsAddressInputFocused(true);
+                      }}
+                      placeholder="Av. Corrientes 1234, CABA"
+                      {...addressFieldRegistration}
+                    />
+                    {showAddressSuggestions ? (
+                      <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-background shadow-md">
+                        {isSearchingAddressSuggestions ? (
+                          <p className="px-3 py-2 text-sm text-muted-foreground">
+                            Buscando direcciones...
+                          </p>
+                        ) : null}
+                        {!isSearchingAddressSuggestions && addressSuggestions.length === 0 ? (
+                          <p className="px-3 py-2 text-sm text-muted-foreground">
+                            No encontramos sugerencias para esta búsqueda.
+                          </p>
+                        ) : null}
+                        {addressSuggestions.map((suggestion) => (
+                          <button
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                            key={`${suggestion.latitude}-${suggestion.longitude}-${suggestion.displayName}`}
+                            onMouseDown={(event) => {
+                              event.preventDefault();
+                              handleAddressSuggestionSelection(suggestion);
+                            }}
+                            type="button"
+                          >
+                            {suggestion.displayName}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
                   <Button
                     disabled={isLocatingAddress}
                     onClick={() => void handleAddressLookup()}
@@ -304,7 +454,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
                   selectedPoint={selectedPoint}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Hacé click en el mapa para marcar el punto exacto.
+                  Hacé click en el mapa para marcar el punto exacto. La dirección se completa automáticamente.
                 </p>
                 <p className="text-sm">
                   Punto seleccionado:{" "}
