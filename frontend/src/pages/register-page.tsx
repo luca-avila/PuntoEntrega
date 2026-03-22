@@ -103,7 +103,7 @@ export function RegisterPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
+          <form className="space-y-4" noValidate onSubmit={onSubmit}>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -113,6 +113,7 @@ export function RegisterPage() {
                 autoComplete="email"
                 {...register("email", {
                   required: "El email es obligatorio.",
+                  setValueAs: (value: string) => value.trim(),
                   pattern: {
                     value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                     message: "Ingresá un email válido.",

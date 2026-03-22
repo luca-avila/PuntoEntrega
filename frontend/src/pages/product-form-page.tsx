@@ -29,6 +29,7 @@ const DEFAULT_VALUES: ProductFormValues = {
   description: "",
   is_active: true,
 };
+const PRODUCT_NAME_MAX_LENGTH = 255;
 
 function mapProductToFormValues(product: ProductRead): ProductFormValues {
   return {
@@ -151,7 +152,7 @@ export function ProductFormPage({ mode }: ProductFormPageProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-5" onSubmit={onSubmit}>
+          <form className="space-y-5" noValidate onSubmit={onSubmit}>
             <div className="grid gap-4">
               <div className="space-y-2">
                 <Label htmlFor="name">Nombre</Label>
@@ -160,8 +161,13 @@ export function ProductFormPage({ mode }: ProductFormPageProps) {
                   placeholder="Harina integral 1kg"
                   {...register("name", {
                     required: "El nombre es obligatorio.",
+                    maxLength: {
+                      value: PRODUCT_NAME_MAX_LENGTH,
+                      message: "El nombre no puede superar los 255 caracteres.",
+                    },
+                    setValueAs: (value: string) => value.trim(),
                     validate: (value) =>
-                      value.trim().length > 0 || "El nombre no puede estar vacío.",
+                      value.length > 0 || "El nombre no puede estar vacío.",
                   })}
                 />
                 {errors.name ? <p className="text-sm text-destructive">{errors.name.message}</p> : null}

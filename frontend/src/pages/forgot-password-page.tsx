@@ -55,7 +55,7 @@ export function ForgotPasswordPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit}>
+          <form className="space-y-4" noValidate onSubmit={onSubmit}>
             {isSuccess ? (
               <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700">
                 Si el email existe, enviamos un enlace para restablecer la contraseña.
@@ -71,6 +71,7 @@ export function ForgotPasswordPage() {
                 autoComplete="email"
                 {...register("email", {
                   required: "El email es obligatorio.",
+                  setValueAs: (value: string) => value.trim(),
                   pattern: {
                     value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                     message: "Ingresá un email válido.",

@@ -18,6 +18,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const POSITIVE_INTEGER_PATTERN = /^[1-9]\d*$/;
+
 export function NewDeliveryPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -197,7 +200,7 @@ export function NewDeliveryPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="space-y-5" onSubmit={onSubmit}>
+            <form className="space-y-5" noValidate onSubmit={onSubmit}>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="location_id">Ubicación</Label>
@@ -226,6 +229,13 @@ export function NewDeliveryPage() {
                     type="datetime-local"
                     {...register("delivered_at", {
                       required: "La fecha y hora son obligatorias.",
+                      validate: (value) => {
+                        if (Number.isNaN(new Date(value).getTime())) {
+                          return "Ingresá una fecha y hora válidas.";
+                        }
+
+                        return true;
+                      },
                     })}
                   />
                   {errors.delivered_at ? (
@@ -257,7 +267,9 @@ export function NewDeliveryPage() {
                   <Input
                     id="payment_notes"
                     placeholder="Ej: se abona por transferencia el viernes"
-                    {...register("payment_notes")}
+                    {...register("payment_notes", {
+                      setValueAs: (value: string) => value.trim(),
+                    })}
                   />
                 </div>
 
@@ -266,7 +278,9 @@ export function NewDeliveryPage() {
                   <Textarea
                     id="observations"
                     placeholder="Detalle adicional de la entrega."
-                    {...register("observations")}
+                    {...register("observations", {
+                      setValueAs: (value: string) => value.trim(),
+                    })}
                   />
                 </div>
 
@@ -279,9 +293,16 @@ export function NewDeliveryPage() {
                     {...register("summary_recipient_email", {
                       required: "El email para resumen es obligatorio.",
                       setValueAs: (value: string) => value.trim(),
-                      pattern: {
-                        value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
-                        message: "Ingresá un email válido.",
+                      maxLength: {
+                        value: 320,
+                        message: "El email no puede superar los 320 caracteres.",
+                      },
+                      validate: (value) => {
+                        if (!value) {
+                          return "El email para resumen es obligatorio.";
+                        }
+
+                        return EMAIL_PATTERN.test(value) || "Ingresá un email válido.";
                       },
                     })}
                   />
@@ -343,6 +364,15 @@ export function NewDeliveryPage() {
                           type="number"
                           {...register(`items.${index}.quantity`, {
                             required: "La cantidad es obligatoria.",
+                            setValueAs: (value: string) => value.trim(),
+                            validate: (value) => {
+                              if (!value) {
+                                return "La cantidad es obligatoria.";
+                              }
+
+                              return POSITIVE_INTEGER_PATTERN.test(value)
+                                || "La cantidad debe ser un entero mayor a 0.";
+                            },
                           })}
                         />
                         {errors.items?.[index]?.quantity ? (

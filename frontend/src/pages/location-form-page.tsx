@@ -49,6 +49,8 @@ const DEFAULT_VALUES: LocationFormValues = {
 
 const MIN_ADDRESS_QUERY_LENGTH = 3;
 const ADDRESS_SUGGESTIONS_DEBOUNCE_MS = 350;
+const PHONE_PATTERN = /^[0-9+\-()\s]+$/;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function emptyToNull(value: string): string | null {
   const trimmed = value.trim();
@@ -108,6 +110,11 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
     ...addressFieldRegistration
   } = register("address", {
     required: "La dirección es obligatoria.",
+    maxLength: {
+      value: 500,
+      message: "La dirección no puede superar los 500 caracteres.",
+    },
+    setValueAs: (value: string) => value.trim(),
     validate: (value) =>
       value.trim().length > 0 || "La dirección no puede estar vacía.",
   });
@@ -368,7 +375,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="space-y-5" onSubmit={onSubmit}>
+          <form className="space-y-5" noValidate onSubmit={onSubmit}>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="name">Nombre</Label>
@@ -377,6 +384,11 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
                   placeholder="Sucursal Centro"
                   {...register("name", {
                     required: "El nombre es obligatorio.",
+                    maxLength: {
+                      value: 255,
+                      message: "El nombre no puede superar los 255 caracteres.",
+                    },
+                    setValueAs: (value: string) => value.trim(),
                     validate: (value) =>
                       value.trim().length > 0 || "El nombre no puede estar vacío.",
                   })}
@@ -462,12 +474,46 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
 
               <div className="space-y-2">
                 <Label htmlFor="contact_name">Contacto</Label>
-                <Input id="contact_name" placeholder="Nombre y apellido" {...register("contact_name")} />
+                <Input
+                  id="contact_name"
+                  placeholder="Nombre y apellido"
+                  {...register("contact_name", {
+                    maxLength: {
+                      value: 255,
+                      message: "El contacto no puede superar los 255 caracteres.",
+                    },
+                    setValueAs: (value: string) => value.trim(),
+                  })}
+                />
+                {errors.contact_name ? (
+                  <p className="text-sm text-destructive">{errors.contact_name.message}</p>
+                ) : null}
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="contact_phone">Teléfono</Label>
-                <Input id="contact_phone" placeholder="+54 11 ..." {...register("contact_phone")} />
+                <Input
+                  id="contact_phone"
+                  placeholder="+54 11 1234-5678"
+                  {...register("contact_phone", {
+                    maxLength: {
+                      value: 50,
+                      message: "El teléfono no puede superar los 50 caracteres.",
+                    },
+                    setValueAs: (value: string) => value.trim(),
+                    validate: (value) => {
+                      if (!value) {
+                        return true;
+                      }
+
+                      return PHONE_PATTERN.test(value)
+                        || "Ingresá un teléfono válido (números, espacios, +, -, paréntesis).";
+                    },
+                  })}
+                />
+                {errors.contact_phone ? (
+                  <p className="text-sm text-destructive">{errors.contact_phone.message}</p>
+                ) : null}
               </div>
 
               <div className="space-y-2 sm:col-span-2">
@@ -477,12 +523,17 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
                   placeholder="contacto@negocio.com"
                   type="email"
                   {...register("contact_email", {
+                    maxLength: {
+                      value: 320,
+                      message: "El email no puede superar los 320 caracteres.",
+                    },
+                    setValueAs: (value: string) => value.trim(),
                     validate: (value) => {
-                      if (!value || value.trim().length === 0) {
+                      if (!value) {
                         return true;
                       }
 
-                      const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+                      const isValidEmail = EMAIL_PATTERN.test(value);
                       return isValidEmail || "Ingresá un email válido.";
                     },
                   })}

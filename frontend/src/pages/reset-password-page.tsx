@@ -104,7 +104,7 @@ export function ResetPasswordPage() {
               </p>
             </div>
           ) : (
-            <form className="space-y-4" onSubmit={onSubmit}>
+            <form className="space-y-4" noValidate onSubmit={onSubmit}>
               <div className="space-y-2">
                 <Label htmlFor="password">Nueva contraseña</Label>
                 <Input
