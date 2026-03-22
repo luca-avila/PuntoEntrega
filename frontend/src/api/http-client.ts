@@ -1,5 +1,9 @@
 import { API_BASE_URL } from "@/lib/env";
 
+type UnauthorizedHandler = () => void;
+
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
 export class ApiError extends Error {
   readonly status: number;
   readonly payload: unknown;
@@ -10,6 +14,10 @@ export class ApiError extends Error {
     this.status = status;
     this.payload = payload;
   }
+}
+
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler;
 }
 
 function buildErrorMessage(payload: unknown, status: number): string {
@@ -52,6 +60,10 @@ export async function apiRequest<T>(
   const payload = await parseResponseBody(response);
 
   if (!response.ok) {
+    if (response.status === 401) {
+      unauthorizedHandler?.();
+    }
+
     throw new ApiError(
       response.status,
       payload,

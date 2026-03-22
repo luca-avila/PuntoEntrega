@@ -1,5 +1,5 @@
 import { authApi } from "@/api/auth-api";
-import { ApiError } from "@/api/http-client";
+import { ApiError, setUnauthorizedHandler } from "@/api/http-client";
 import {
   AuthContext,
   type AuthContextValue,
@@ -57,6 +57,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     void refreshSession();
   }, [refreshSession]);
+
+  useEffect(() => {
+    setUnauthorizedHandler(() => {
+      setUser(null);
+      setStatus("unauthenticated");
+    });
+
+    return () => {
+      setUnauthorizedHandler(null);
+    };
+  }, []);
 
   const value = useMemo<AuthContextValue>(
     () => ({
