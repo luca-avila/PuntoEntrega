@@ -46,7 +46,7 @@ export function ForgotPasswordPage() {
   });
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/20 px-4 py-10">
+    <div className="auth-shell">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-center">Recuperar contraseña</CardTitle>
@@ -57,7 +57,7 @@ export function ForgotPasswordPage() {
         <CardContent>
           <form className="space-y-4" noValidate onSubmit={onSubmit}>
             {isSuccess ? (
-              <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700">
+              <p className="feedback-success">
                 Si el email existe, enviamos un enlace para restablecer la contraseña.
               </p>
             ) : null}
@@ -84,7 +84,7 @@ export function ForgotPasswordPage() {
             </div>
 
             {submitError ? (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <p className="feedback-error">
                 {submitError}
               </p>
             ) : null}

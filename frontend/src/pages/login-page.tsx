@@ -75,7 +75,7 @@ export function LoginPage() {
   });
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/20 px-4 py-10">
+    <div className="auth-shell">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-center">Iniciar sesión</CardTitle>
@@ -86,19 +86,19 @@ export function LoginPage() {
         <CardContent>
           <form className="space-y-4" noValidate onSubmit={onSubmit}>
             {isRegistered ? (
-              <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700">
+              <p className="feedback-success">
                 Cuenta creada. Revisá tu correo para verificarla y después iniciá sesión.
               </p>
             ) : null}
 
             {isVerified ? (
-              <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700">
+              <p className="feedback-success">
                 Cuenta verificada. Ya podés iniciar sesión.
               </p>
             ) : null}
 
             {isPasswordReset ? (
-              <p className="rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700">
+              <p className="feedback-success">
                 Contraseña actualizada. Ya podés iniciar sesión.
               </p>
             ) : null}
@@ -146,7 +146,7 @@ export function LoginPage() {
             </div>
 
             {submitError ? (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <p className="feedback-error">
                 {submitError}
               </p>
             ) : null}

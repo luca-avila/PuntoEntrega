@@ -359,10 +359,10 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
   }
 
   return (
-    <section className="space-y-4">
+    <section className="page-section">
       <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-semibold">{pageTitle}</h2>
-        <p className="text-sm text-muted-foreground">
+        <h2 className="page-title">{pageTitle}</h2>
+        <p className="page-description">
           Completá los datos y elegí el punto exacto en el mapa.
         </p>
       </div>
@@ -416,7 +416,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
                       {...addressFieldRegistration}
                     />
                     {showAddressSuggestions ? (
-                      <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-md border bg-background shadow-md">
+                      <div className="absolute z-20 mt-1 max-h-56 w-full overflow-y-auto rounded-lg border border-border/80 bg-card shadow-card">
                         {isSearchingAddressSuggestions ? (
                           <p className="px-3 py-2 text-sm text-muted-foreground">
                             Buscando direcciones...
@@ -429,7 +429,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
                         ) : null}
                         {addressSuggestions.map((suggestion) => (
                           <button
-                            className="w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                            className="w-full px-3 py-2 text-left text-sm hover:bg-secondary/65"
                             key={`${suggestion.latitude}-${suggestion.longitude}-${suggestion.displayName}`}
                             onMouseDown={(event) => {
                               event.preventDefault();
@@ -466,7 +466,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
                 <p className="text-xs text-muted-foreground">
                   Hacé click en el mapa para marcar el punto exacto. La dirección se completa automáticamente.
                 </p>
-                <p className="text-sm">
+                <p className="text-sm text-muted-foreground">
                   Punto en mapa: {selectedPoint ? "marcado" : "sin marcar"}
                 </p>
                 {mapError ? <p className="text-sm text-destructive">{mapError}</p> : null}
@@ -550,7 +550,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
             </div>
 
             {submitError ? (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <p className="feedback-error">
                 {submitError}
               </p>
             ) : null}

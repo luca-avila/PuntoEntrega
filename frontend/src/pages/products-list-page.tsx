@@ -51,11 +51,11 @@ export function ProductsListPage() {
   }, [products, filter]);
 
   return (
-    <section className="space-y-4">
+    <section className="page-section">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold">Productos</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="page-title">Productos</h2>
+          <p className="page-description">
             Administrá el catálogo de productos de tu organización.
           </p>
         </div>
@@ -129,8 +129,8 @@ export function ProductsListPage() {
                   <span
                     className={
                       product.is_active
-                        ? "rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700"
-                        : "rounded-full bg-slate-200 px-2 py-0.5 text-xs font-medium text-slate-700"
+                        ? "status-chip status-chip-success"
+                        : "status-chip status-chip-muted"
                     }
                   >
                     {product.is_active ? "Activo" : "Inactivo"}

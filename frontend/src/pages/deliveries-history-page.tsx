@@ -151,10 +151,10 @@ export function DeliveriesHistoryPage() {
   };
 
   return (
-    <section className="space-y-4">
-      <div className="space-y-1">
-        <h2 className="text-2xl font-semibold">Historial de entregas</h2>
-        <p className="text-sm text-muted-foreground">
+    <section className="page-section">
+      <div className="page-header">
+        <h2 className="page-title">Historial de entregas</h2>
+        <p className="page-description">
           Revisá entregas registradas y estado de envío de email.
         </p>
       </div>
@@ -223,7 +223,7 @@ export function DeliveriesHistoryPage() {
           </div>
 
           {filterError ? (
-            <p className="sm:col-span-2 lg:col-span-4 text-sm text-destructive">{filterError}</p>
+            <p className="text-sm text-destructive sm:col-span-2 lg:col-span-4">{filterError}</p>
           ) : null}
         </CardContent>
       </Card>
@@ -276,7 +276,7 @@ export function DeliveriesHistoryPage() {
                   <CardTitle className="flex flex-wrap items-center gap-2 text-base">
                     {location?.name ?? "Ubicación"}
                     <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${getDeliveryEmailStatusClassName(
+                      className={`status-chip ${getDeliveryEmailStatusClassName(
                         delivery.email_status,
                       )}`}
                     >

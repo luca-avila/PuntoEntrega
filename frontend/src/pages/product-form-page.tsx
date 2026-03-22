@@ -136,10 +136,10 @@ export function ProductFormPage({ mode }: ProductFormPageProps) {
   }
 
   return (
-    <section className="space-y-4">
+    <section className="page-section">
       <div className="flex flex-col gap-2">
-        <h2 className="text-2xl font-semibold">{pageTitle}</h2>
-        <p className="text-sm text-muted-foreground">
+        <h2 className="page-title">{pageTitle}</h2>
+        <p className="page-description">
           Completá los datos del producto para el catálogo de tu organización.
         </p>
       </div>
@@ -182,11 +182,11 @@ export function ProductFormPage({ mode }: ProductFormPageProps) {
                 />
               </div>
 
-              <div className="flex items-center gap-2 rounded-md border p-3">
+              <div className="flex items-center gap-2 rounded-lg border border-border/80 bg-secondary/35 p-3">
                 <input
                   id="is_active"
                   type="checkbox"
-                  className="h-4 w-4 rounded border-input text-primary focus:ring-ring"
+                  className="h-4 w-4 rounded border-input bg-input/45 text-primary focus:ring-ring"
                   {...register("is_active")}
                 />
                 <Label htmlFor="is_active">Producto activo</Label>
@@ -194,7 +194,7 @@ export function ProductFormPage({ mode }: ProductFormPageProps) {
             </div>
 
             {submitError ? (
-              <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              <p className="feedback-error">
                 {submitError}
               </p>
             ) : null}

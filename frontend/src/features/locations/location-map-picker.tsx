@@ -7,7 +7,7 @@ const DEFAULT_ZOOM = 13;
 
 const LOCATION_MARKER_ICON = divIcon({
   className: "",
-  html: '<span style="display:block;width:18px;height:18px;border-radius:9999px;background:#1f2937;border:2px solid #ffffff;box-shadow:0 1px 3px rgba(0,0,0,0.4);"></span>',
+  html: '<span style="display:block;width:18px;height:18px;border-radius:9999px;background:hsl(var(--primary));border:2px solid hsl(var(--card));box-shadow:0 0 0 4px hsl(var(--primary) / 0.2),0 2px 8px rgba(0,0,0,0.45);"></span>',
   iconSize: [18, 18],
   iconAnchor: [9, 9],
 });
@@ -53,8 +53,8 @@ export function LocationMapPicker({ selectedPoint, onSelectPoint }: LocationMapP
         zoom={DEFAULT_ZOOM}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
         />
         <MapClickSelector onSelectPoint={onSelectPoint} />
         <MapCenterUpdater center={center} />

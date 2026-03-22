@@ -4,26 +4,31 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 224 71% 4%;
-    --card: 0 0% 100%;
-    --card-foreground: 224 71% 4%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 224 71% 4%;
-    --primary: 222 47% 11%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 215 20% 65%;
-    --radius: 0.5rem;
+    --background: 222 36% 10%;
+    --foreground: 214 36% 92%;
+    --card: 222 32% 14%;
+    --card-foreground: 214 36% 92%;
+    --popover: 222 32% 14%;
+    --popover-foreground: 214 36% 92%;
+    --primary: 199 92% 56%;
+    --primary-foreground: 217 44% 10%;
+    --secondary: 222 26% 20%;
+    --secondary-foreground: 214 33% 90%;
+    --muted: 223 25% 17%;
+    --muted-foreground: 217 20% 70%;
+    --accent: 223 25% 17%;
+    --accent-foreground: 214 36% 92%;
+    --destructive: 0 77% 62%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 219 24% 28%;
+    --input: 220 24% 24%;
+    --ring: 199 92% 56%;
+    --radius: 0.75rem;
+    --font-heading: "Manrope", "Segoe UI", sans-serif;
+    --font-body: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    --space-section: 1.5rem;
+    --space-block: 1rem;
+    color-scheme: dark;
   }
 
   * {
@@ -32,10 +37,79 @@
 
   body {
     @apply min-h-screen bg-background text-foreground antialiased;
-    font-family: "Manrope", "Segoe UI", sans-serif;
+    font-family: var(--font-body);
+    line-height: 1.5;
+    background-image:
+      radial-gradient(circle at 12% 0%, hsl(205 100% 24% / 0.32), transparent 44%),
+      radial-gradient(circle at 88% 100%, hsl(193 100% 22% / 0.2), transparent 42%);
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    @apply text-foreground tracking-tight;
+  }
+
+  ::selection {
+    background-color: hsl(var(--primary) / 0.35);
+    color: hsl(var(--foreground));
   }
 }
 
 .leaflet-container {
   font: inherit;
+}
+
+@layer components {
+  .app-shell {
+    @apply min-h-screen bg-background;
+  }
+
+  .auth-shell {
+    @apply flex min-h-screen items-center justify-center px-4 py-10;
+  }
+
+  .page-section {
+    @apply space-y-6;
+  }
+
+  .page-header {
+    @apply space-y-1;
+  }
+
+  .page-title {
+    @apply text-2xl font-semibold md:text-3xl;
+  }
+
+  .page-description {
+    @apply text-sm text-muted-foreground;
+  }
+
+  .feedback-success {
+    @apply rounded-lg border border-emerald-400/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200;
+  }
+
+  .feedback-error {
+    @apply rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive;
+  }
+
+  .status-chip {
+    @apply rounded-full border px-2.5 py-1 text-xs font-semibold;
+  }
+
+  .status-chip-success {
+    @apply border-emerald-400/30 bg-emerald-500/15 text-emerald-200;
+  }
+
+  .status-chip-danger {
+    @apply border-rose-400/30 bg-rose-500/15 text-rose-200;
+  }
+
+  .status-chip-muted {
+    @apply border-border/90 bg-secondary text-secondary-foreground;
+  }
 }

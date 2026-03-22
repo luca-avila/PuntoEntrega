@@ -102,11 +102,11 @@ export function DeliveryDetailPage() {
   }
 
   return (
-    <section className="space-y-4">
+    <section className="page-section">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="space-y-1">
-          <h2 className="text-2xl font-semibold">Detalle de entrega</h2>
-          <p className="text-sm text-muted-foreground">ID: {delivery.id}</p>
+        <div className="page-header">
+          <h2 className="page-title">Detalle de entrega</h2>
+          <p className="page-description">ID: {delivery.id}</p>
         </div>
 
         <div className="flex gap-2">
@@ -124,7 +124,7 @@ export function DeliveryDetailPage() {
           <CardTitle className="flex flex-wrap items-center gap-2 text-lg">
             {location?.name ?? "Ubicación"}
             <span
-              className={`rounded-full px-2 py-0.5 text-xs font-medium ${getDeliveryEmailStatusClassName(
+              className={`status-chip ${getDeliveryEmailStatusClassName(
                 delivery.email_status,
               )}`}
             >
@@ -168,7 +168,7 @@ export function DeliveryDetailPage() {
               return (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between rounded-md border p-3 text-sm"
+                  className="flex items-center justify-between rounded-lg border border-border/80 bg-secondary/35 p-3 text-sm"
                 >
                   <span>{productName}</span>
                   <span className="font-medium">Cantidad: {item.quantity}</span>

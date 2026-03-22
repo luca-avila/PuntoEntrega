@@ -30,11 +30,11 @@ export function LocationsListPage() {
   }, [loadLocations]);
 
   return (
-    <section className="space-y-4">
+    <section className="page-section">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-2xl font-semibold">Ubicaciones</h2>
-          <p className="text-sm text-muted-foreground">
+          <h2 className="page-title">Ubicaciones</h2>
+          <p className="page-description">
             Administrá los puntos físicos de entrega de tu organización.
           </p>
         </div>

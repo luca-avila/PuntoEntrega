@@ -41,10 +41,21 @@ export default {
           foreground: "hsl(var(--card-foreground))",
         },
       },
+      fontFamily: {
+        sans: ["var(--font-body)"],
+        heading: ["var(--font-heading)"],
+      },
+      spacing: {
+        section: "var(--space-section)",
+        block: "var(--space-block)",
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
         sm: "calc(var(--radius) - 4px)",
+      },
+      boxShadow: {
+        card: "0 18px 45px -30px hsl(220 65% 2% / 0.82)",
       },
     },
   },

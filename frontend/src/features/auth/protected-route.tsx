@@ -7,7 +7,7 @@ export function ProtectedRoute() {
 
   if (status === "loading") {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-muted/20 px-4 text-sm text-muted-foreground">
+      <div className="auth-shell text-sm text-muted-foreground">
         Cargando sesión...
       </div>
     );

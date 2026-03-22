@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 
 export function HomePage() {
   return (
-    <section className="space-y-4">
+    <section className="page-section">
       <Card>
         <CardHeader>
           <CardTitle>Panel operativo</CardTitle>
@@ -11,9 +11,9 @@ export function HomePage() {
             Gestioná ubicaciones, productos y entregas desde este espacio.
           </CardDescription>
         </CardHeader>
-        <CardContent className="grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <CardContent className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
           <Link
-            className="rounded-md border p-4 transition-colors hover:bg-muted"
+            className="rounded-xl border border-border/80 bg-secondary/40 p-4 transition-colors hover:bg-secondary/70"
             to="/entregas/nueva"
           >
             <p className="font-medium">Nueva entrega</p>
@@ -23,7 +23,7 @@ export function HomePage() {
           </Link>
 
           <Link
-            className="rounded-md border p-4 transition-colors hover:bg-muted"
+            className="rounded-xl border border-border/80 bg-secondary/40 p-4 transition-colors hover:bg-secondary/70"
             to="/entregas"
           >
             <p className="font-medium">Historial</p>
@@ -33,7 +33,7 @@ export function HomePage() {
           </Link>
 
           <Link
-            className="rounded-md border p-4 transition-colors hover:bg-muted"
+            className="rounded-xl border border-border/80 bg-secondary/40 p-4 transition-colors hover:bg-secondary/70"
             to="/ubicaciones"
           >
             <p className="font-medium">Ubicaciones</p>
@@ -43,7 +43,7 @@ export function HomePage() {
           </Link>
 
           <Link
-            className="rounded-md border p-4 transition-colors hover:bg-muted"
+            className="rounded-xl border border-border/80 bg-secondary/40 p-4 transition-colors hover:bg-secondary/70"
             to="/productos"
           >
             <p className="font-medium">Productos</p>

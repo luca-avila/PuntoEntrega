@@ -71,7 +71,7 @@ export function VerifyEmailPage() {
   }, [token]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/20 px-4 py-10">
+    <div className="auth-shell">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-center">Verificación de cuenta</CardTitle>
@@ -83,7 +83,7 @@ export function VerifyEmailPage() {
           ) : (
             <Link
               to={status === "success" ? "/iniciar-sesion?verified=1" : "/iniciar-sesion"}
-              className="inline-flex h-10 items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+              className="inline-flex h-10 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm shadow-black/30 transition-colors hover:bg-primary/90"
             >
               Ir a iniciar sesión
             </Link>

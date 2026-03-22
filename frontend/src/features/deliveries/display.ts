@@ -25,14 +25,14 @@ export function getDeliveryEmailStatusClassName(
   status: DeliveryRead["email_status"],
 ): string {
   if (status === "sent") {
-    return "bg-emerald-100 text-emerald-700";
+    return "status-chip-success";
   }
 
   if (status === "failed") {
-    return "bg-rose-100 text-rose-700";
+    return "status-chip-danger";
   }
 
-  return "bg-slate-200 text-slate-700";
+  return "status-chip-muted";
 }
 
 export function getDeliveryPaymentMethodLabel(

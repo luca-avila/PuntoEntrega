@@ -129,10 +129,10 @@ export function NewDeliveryPage() {
   });
 
   return (
-    <section className="space-y-4">
-      <div className="space-y-1">
-        <h2 className="text-2xl font-semibold">Nueva entrega</h2>
-        <p className="text-sm text-muted-foreground">
+    <section className="page-section">
+      <div className="page-header">
+        <h2 className="page-title">Nueva entrega</h2>
+        <p className="page-description">
           Registrá una entrega con ubicación, productos y forma de pago.
         </p>
       </div>
@@ -317,7 +317,7 @@ export function NewDeliveryPage() {
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-md border p-4">
+              <div className="space-y-3 rounded-xl border border-border/80 bg-secondary/35 p-4">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-medium">Productos entregados</h3>
                   <Button onClick={addItemRow} size="sm" type="button" variant="outline">
@@ -329,7 +329,7 @@ export function NewDeliveryPage() {
                   {fields.map((field, index) => (
                     <div
                       key={field.id}
-                      className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_140px_auto] sm:items-end"
+                      className="grid gap-2 rounded-lg border border-border/80 bg-card/75 p-3 sm:grid-cols-[1fr_140px_auto] sm:items-end"
                     >
                       <div className="space-y-2">
                         <Label htmlFor={`items.${index}.product_id`}>Producto</Label>
@@ -398,7 +398,7 @@ export function NewDeliveryPage() {
               </div>
 
               {submitError ? (
-                <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <p className="feedback-error">
                   {submitError}
                 </p>
               ) : null}
