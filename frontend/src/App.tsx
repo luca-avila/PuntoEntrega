@@ -25,7 +25,9 @@ export default function App() {
           <Route path="/registro" element={<RegisterPage />} />
           <Route path="/recuperar-contrasena" element={<ForgotPasswordPage />} />
           <Route path="/restablecer-contrasena" element={<ResetPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/verificar-email" element={<VerifyEmailPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<ProtectedLayout />}>

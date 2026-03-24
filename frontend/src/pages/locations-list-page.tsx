@@ -11,6 +11,7 @@ export function LocationsListPage() {
   const [locations, setLocations] = useState<LocationRead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const hasLocations = locations.length > 0;
 
   const loadLocations = useCallback(async () => {
     setIsLoading(true);
@@ -29,6 +30,10 @@ export function LocationsListPage() {
     void loadLocations();
   }, [loadLocations]);
 
+  const handleCreateLocation = () => {
+    navigate("/ubicaciones/nueva");
+  };
+
   return (
     <section className="page-section">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -38,7 +43,9 @@ export function LocationsListPage() {
             Administrá los puntos físicos de entrega de tu organización.
           </p>
         </div>
-        <Button onClick={() => navigate("/ubicaciones/nueva")}>Nueva ubicación</Button>
+        {hasLocations ? (
+          <Button onClick={handleCreateLocation}>Nueva ubicación</Button>
+        ) : null}
       </div>
 
       {errorMessage ? (
@@ -61,7 +68,7 @@ export function LocationsListPage() {
         </Card>
       ) : null}
 
-      {!isLoading && !errorMessage && locations.length === 0 ? (
+      {!isLoading && !errorMessage && !hasLocations ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Todavía no hay ubicaciones</CardTitle>
@@ -70,12 +77,12 @@ export function LocationsListPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => navigate("/ubicaciones/nueva")}>Crear ubicación</Button>
+            <Button onClick={handleCreateLocation}>Crear ubicación</Button>
           </CardContent>
         </Card>
       ) : null}
 
-      {!isLoading && !errorMessage && locations.length > 0 ? (
+      {!isLoading && !errorMessage && hasLocations ? (
         <div className="grid gap-3">
           {locations.map((location) => (
             <Card key={location.id}>

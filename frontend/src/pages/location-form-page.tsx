@@ -82,6 +82,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
   const [isAddressInputFocused, setIsAddressInputFocused] = useState(false);
   const [isSearchingAddressSuggestions, setIsSearchingAddressSuggestions] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState<GeocodingSuggestion[]>([]);
+  const mapSectionRef = useRef<HTMLDivElement | null>(null);
   const addressSuggestionsAbortRef = useRef<AbortController | null>(null);
   const reverseGeocodeAbortRef = useRef<AbortController | null>(null);
 
@@ -202,6 +203,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
   const applyPointSelection = (point: LatLngLiteral) => {
     setSelectedPoint(point);
     setMapError(null);
+    setSubmitError(null);
     setValue("latitude", Number(point.lat.toFixed(6)), { shouldValidate: true });
     setValue("longitude", Number(point.lng.toFixed(6)), { shouldValidate: true });
   };
@@ -303,10 +305,16 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
     setMapError(null);
 
     if (formValues.latitude === null || formValues.longitude === null) {
-      setMapError("Seleccioná en el mapa el punto exacto de la ubicación.");
+      const mapSelectionMessage = "Seleccioná en el mapa el punto exacto de la ubicación.";
+      setMapError(mapSelectionMessage);
+      setSubmitError(mapSelectionMessage);
       setError("latitude", {
         type: "manual",
         message: "Debés seleccionar un punto en el mapa.",
+      });
+      mapSectionRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
       });
       return;
     }
@@ -336,6 +344,8 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
         getApiErrorMessage(error, "No pudimos guardar la ubicación. Revisá los datos e intentá nuevamente."),
       );
     }
+  }, () => {
+    setSubmitError("Revisá los campos obligatorios y volvé a intentar.");
   });
 
   if (mode === "edit" && !locationId) {
@@ -377,7 +387,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
         <CardContent>
           <form className="space-y-5" noValidate onSubmit={onSubmit}>
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
+              <div className="space-y-2 sm:col-span-2" ref={mapSectionRef}>
                 <Label htmlFor="name">Nombre</Label>
                 <Input
                   id="name"
