@@ -1,41 +1,7 @@
-const NOMINATIM_BASE_URL = "https://nominatim.openstreetmap.org";
 const GOOGLE_GEOCODING_API_URL = "https://maps.googleapis.com/maps/api/geocode/json";
 const ARGENTINA_COUNTRY_CODE = "ar";
 const GOOGLE_ARGENTINA_COUNTRY_CODE = "AR";
 const GOOGLE_MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY?.trim() ?? "";
-
-interface SearchNominatimItem {
-  display_name?: string;
-  lat?: string;
-  lon?: string;
-  address?: NominatimAddress;
-}
-
-interface ReverseNominatimItem {
-  display_name?: string;
-  lat?: string;
-  lon?: string;
-  address?: NominatimAddress;
-}
-
-interface NominatimAddress {
-  country_code?: string;
-  house_number?: string;
-  road?: string;
-  pedestrian?: string;
-  footway?: string;
-  street?: string;
-  suburb?: string;
-  neighbourhood?: string;
-  city_district?: string;
-  city?: string;
-  town?: string;
-  village?: string;
-  hamlet?: string;
-  municipality?: string;
-  county?: string;
-  state?: string;
-}
 
 interface GoogleGeocodeResponse {
   status: string;
@@ -72,6 +38,16 @@ export interface GeocodingSuggestion {
   latitude: number;
   longitude: number;
   hasHouseNumber: boolean;
+}
+
+export class GeocodingError extends Error {
+  readonly code: "missing_api_key" | "provider_error";
+
+  constructor(code: "missing_api_key" | "provider_error", message: string) {
+    super(message);
+    this.name = "GeocodingError";
+    this.code = code;
+  }
 }
 
 function parseCoordinate(value: string | number | undefined): number | null {
@@ -120,85 +96,8 @@ function normalizeDisplayName(value: string | undefined): string | null {
   if (!normalized) {
     return null;
   }
+
   return normalized;
-}
-
-function buildStreetLabel(address?: NominatimAddress): string | null {
-  if (!address) {
-    return null;
-  }
-
-  const street = firstNonEmpty([
-    address.road,
-    address.pedestrian,
-    address.footway,
-    address.street,
-  ]);
-  const houseNumber = address.house_number?.trim() ?? "";
-
-  if (street && houseNumber) {
-    return `${street} ${houseNumber}`;
-  }
-
-  if (street) {
-    return street;
-  }
-
-  if (houseNumber) {
-    return houseNumber;
-  }
-
-  return null;
-}
-
-function buildLocalityLabel(address?: NominatimAddress): string | null {
-  if (!address) {
-    return null;
-  }
-
-  return firstNonEmpty([
-    address.city,
-    address.town,
-    address.village,
-    address.hamlet,
-    address.municipality,
-    address.suburb,
-    address.neighbourhood,
-    address.city_district,
-    address.county,
-    address.state,
-  ]);
-}
-
-function buildCompactAddressLabel(
-  displayName: string | undefined,
-  address?: NominatimAddress,
-): string | null {
-  const streetLabel = buildStreetLabel(address);
-  const localityLabel = buildLocalityLabel(address);
-
-  if (streetLabel && localityLabel) {
-    return `${streetLabel}, ${localityLabel}`;
-  }
-
-  if (streetLabel) {
-    return streetLabel;
-  }
-
-  if (localityLabel) {
-    return localityLabel;
-  }
-
-  return compactDisplayName(displayName);
-}
-
-function isArgentinaAddress(address?: NominatimAddress): boolean {
-  const countryCode = address?.country_code?.toLowerCase();
-  if (!countryCode) {
-    return true;
-  }
-
-  return countryCode === ARGENTINA_COUNTRY_CODE;
 }
 
 function getGoogleAddressComponent(
@@ -211,6 +110,7 @@ function getGoogleAddressComponent(
       return component;
     }
   }
+
   return null;
 }
 
@@ -304,29 +204,15 @@ function getGoogleResultTypeScore(types: string[] | undefined): number {
   return 0;
 }
 
-function shouldUseGoogleGeocoding(): boolean {
-  return GOOGLE_MAPS_API_KEY.length > 0;
-}
-
-async function fetchNominatimJson<T>(
-  path: string,
-  params: Record<string, string>,
-  options: GeocodingRequestOptions = {},
-): Promise<T> {
-  const query = new URLSearchParams({
-    format: "jsonv2",
-    ...params,
-  });
-
-  const response = await fetch(`${NOMINATIM_BASE_URL}${path}?${query.toString()}`, {
-    signal: options.signal,
-  });
-
-  if (!response.ok) {
-    throw new Error("Nominatim request failed.");
+function ensureGoogleApiKeyConfigured(): void {
+  if (GOOGLE_MAPS_API_KEY.length > 0) {
+    return;
   }
 
-  return (await response.json()) as T;
+  throw new GeocodingError(
+    "missing_api_key",
+    "Falta configurar VITE_GOOGLE_MAPS_API_KEY para usar el geocodificador de Google.",
+  );
 }
 
 async function fetchGoogleGeocodingJson(
@@ -344,44 +230,19 @@ async function fetchGoogleGeocodingJson(
   });
 
   if (!response.ok) {
-    throw new Error("Google geocoding request failed.");
+    throw new GeocodingError("provider_error", "La solicitud a Google Geocoding falló.");
   }
 
   const payload = (await response.json()) as GoogleGeocodeResponse;
   if (payload.status !== "OK" && payload.status !== "ZERO_RESULTS") {
     const errorDetail = payload.error_message ? ` (${payload.error_message})` : "";
-    throw new Error(`Google geocoding request failed: ${payload.status}${errorDetail}`);
+    throw new GeocodingError(
+      "provider_error",
+      `Google Geocoding devolvió ${payload.status}${errorDetail}`,
+    );
   }
 
   return payload;
-}
-
-function normalizeSearchResultsFromNominatim(results: SearchNominatimItem[]): GeocodingSuggestion[] {
-  return results
-    .map((item) => {
-      const latitude = parseCoordinate(item.lat);
-      const longitude = parseCoordinate(item.lon);
-      const compactDisplay = buildCompactAddressLabel(item.display_name, item.address);
-      const fullAddress = normalizeDisplayName(item.display_name) ?? compactDisplay;
-
-      if (
-        !fullAddress ||
-        latitude === null ||
-        longitude === null ||
-        !isArgentinaAddress(item.address)
-      ) {
-        return null;
-      }
-
-      return {
-        fullAddress,
-        displayName: compactDisplay ?? fullAddress,
-        latitude,
-        longitude,
-        hasHouseNumber: Boolean(item.address?.house_number?.trim()),
-      };
-    })
-    .filter((result): result is GeocodingSuggestion => result !== null);
 }
 
 function normalizeResultsFromGoogle(results: GoogleGeocodeResult[]): GeocodingSuggestion[] {
@@ -419,25 +280,6 @@ function normalizeResultsFromGoogle(results: GoogleGeocodeResult[]): GeocodingSu
   return parsedResults.map((result) => result.suggestion);
 }
 
-async function searchAddressSuggestionsWithNominatim(
-  query: string,
-  options: GeocodingRequestOptions & { limit?: number } = {},
-): Promise<GeocodingSuggestion[]> {
-  const response = await fetchNominatimJson<SearchNominatimItem[]>(
-    "/search",
-    {
-      q: query,
-      limit: String(options.limit ?? 5),
-      addressdetails: "1",
-      countrycodes: ARGENTINA_COUNTRY_CODE,
-      "accept-language": "es",
-    },
-    options,
-  );
-
-  return normalizeSearchResultsFromNominatim(response);
-}
-
 async function searchAddressSuggestionsWithGoogle(
   query: string,
   options: GeocodingRequestOptions & { limit?: number } = {},
@@ -457,45 +299,6 @@ async function searchAddressSuggestionsWithGoogle(
 
   const suggestions = normalizeResultsFromGoogle(response.results);
   return suggestions.slice(0, options.limit ?? 5);
-}
-
-async function reverseGeocodeCoordinatesWithNominatim(
-  latitude: number,
-  longitude: number,
-  options: GeocodingRequestOptions = {},
-): Promise<GeocodingSuggestion | null> {
-  const response = await fetchNominatimJson<ReverseNominatimItem>(
-    "/reverse",
-    {
-      lat: String(latitude),
-      lon: String(longitude),
-      zoom: "18",
-      addressdetails: "1",
-    },
-    options,
-  );
-
-  const parsedLatitude = parseCoordinate(response.lat);
-  const parsedLongitude = parseCoordinate(response.lon);
-  const compactDisplay = buildCompactAddressLabel(response.display_name, response.address);
-  const fullAddress = normalizeDisplayName(response.display_name) ?? compactDisplay;
-
-  if (
-    !fullAddress ||
-    parsedLatitude === null ||
-    parsedLongitude === null ||
-    !isArgentinaAddress(response.address)
-  ) {
-    return null;
-  }
-
-  return {
-    fullAddress,
-    displayName: compactDisplay ?? fullAddress,
-    latitude: parsedLatitude,
-    longitude: parsedLongitude,
-    hasHouseNumber: Boolean(response.address?.house_number?.trim()),
-  };
 }
 
 async function reverseGeocodeCoordinatesWithGoogle(
@@ -521,6 +324,40 @@ async function reverseGeocodeCoordinatesWithGoogle(
   return suggestions[0] ?? null;
 }
 
+export function getGeocodingErrorMessage(error: unknown, fallbackMessage: string): string {
+  if (!(error instanceof Error)) {
+    return fallbackMessage;
+  }
+
+  const message = error.message.toLowerCase();
+
+  if (error instanceof GeocodingError && error.code === "missing_api_key") {
+    return error.message;
+  }
+
+  if (message.includes("expired")) {
+    return "La API key de Google está expirada. Generá una nueva key válida y reiniciá Vite.";
+  }
+
+  if (message.includes("request_denied")) {
+    return "Google rechazó la API key. Revisá permisos, restricciones y APIs habilitadas.";
+  }
+
+  if (message.includes("over_query_limit")) {
+    return "Google alcanzó el límite de consultas. Revisá cuota y facturación del proyecto.";
+  }
+
+  if (message.includes("invalid_request")) {
+    return "Google rechazó la solicitud de geocodificación. Revisá la dirección ingresada.";
+  }
+
+  if (message.includes("api key") || message.includes("geocoding")) {
+    return error.message;
+  }
+
+  return fallbackMessage;
+}
+
 export async function searchAddressSuggestions(
   query: string,
   options: GeocodingRequestOptions & { limit?: number } = {},
@@ -530,15 +367,8 @@ export async function searchAddressSuggestions(
     return [];
   }
 
-  if (shouldUseGoogleGeocoding()) {
-    try {
-      return await searchAddressSuggestionsWithGoogle(trimmedQuery, options);
-    } catch {
-      return searchAddressSuggestionsWithNominatim(trimmedQuery, options);
-    }
-  }
-
-  return searchAddressSuggestionsWithNominatim(trimmedQuery, options);
+  ensureGoogleApiKeyConfigured();
+  return searchAddressSuggestionsWithGoogle(trimmedQuery, options);
 }
 
 export async function reverseGeocodeCoordinates(
@@ -546,13 +376,6 @@ export async function reverseGeocodeCoordinates(
   longitude: number,
   options: GeocodingRequestOptions = {},
 ): Promise<GeocodingSuggestion | null> {
-  if (shouldUseGoogleGeocoding()) {
-    try {
-      return await reverseGeocodeCoordinatesWithGoogle(latitude, longitude, options);
-    } catch {
-      return reverseGeocodeCoordinatesWithNominatim(latitude, longitude, options);
-    }
-  }
-
-  return reverseGeocodeCoordinatesWithNominatim(latitude, longitude, options);
+  ensureGoogleApiKeyConfigured();
+  return reverseGeocodeCoordinatesWithGoogle(latitude, longitude, options);
 }

@@ -9,14 +9,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  getGeocodingErrorMessage,
   reverseGeocodeCoordinates,
   searchAddressSuggestions,
   type GeocodingSuggestion,
 } from "@/features/locations/geocoding";
 import { Textarea } from "@/components/ui/textarea";
-import { LocationMapPicker } from "@/features/locations/location-map-picker";
+import { LocationMapPicker, type LocationPoint } from "@/features/locations/location-map-picker";
 import { getApiErrorMessage } from "@/lib/errors";
-import type { LatLngLiteral } from "leaflet";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { useNavigate, useParams } from "react-router-dom";
@@ -84,7 +84,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [isLocatingAddress, setIsLocatingAddress] = useState(false);
-  const [selectedPoint, setSelectedPoint] = useState<LatLngLiteral | null>(null);
+  const [selectedPoint, setSelectedPoint] = useState<LocationPoint | null>(null);
   const [isAddressInputFocused, setIsAddressInputFocused] = useState(false);
   const [isSearchingAddressSuggestions, setIsSearchingAddressSuggestions] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState<GeocodingSuggestion[]>([]);
@@ -193,6 +193,12 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
             return;
           }
           setAddressSuggestions([]);
+          setMapError(
+            getGeocodingErrorMessage(
+              error,
+              "No pudimos consultar sugerencias de dirección en Google.",
+            ),
+          );
         })
         .finally(() => {
           if (addressSuggestionsAbortRef.current === controller) {
@@ -206,7 +212,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
     };
   }, [address, isAddressInputFocused]);
 
-  const applyPointSelection = (point: LatLngLiteral) => {
+  const applyPointSelection = (point: LocationPoint) => {
     setSelectedPoint(point);
     setMapError(null);
     setSubmitError(null);
@@ -214,7 +220,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
     setValue("longitude", Number(point.lng.toFixed(6)), { shouldValidate: true });
   };
 
-  const autoFillAddressFromCoordinates = async (point: LatLngLiteral) => {
+  const autoFillAddressFromCoordinates = async (point: LocationPoint) => {
     reverseGeocodeAbortRef.current?.abort();
     const controller = new AbortController();
     reverseGeocodeAbortRef.current = controller;
@@ -243,9 +249,10 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
         return;
       }
 
-      setMapError(
+      setMapError(getGeocodingErrorMessage(
+        error,
         "Pudimos guardar el punto en el mapa, pero falló la búsqueda automática de la dirección.",
-      );
+      ));
     } finally {
       if (reverseGeocodeAbortRef.current === controller) {
         setIsLocatingAddress(false);
@@ -253,7 +260,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
     }
   };
 
-  const handlePointSelection = (point: LatLngLiteral) => {
+  const handlePointSelection = (point: LocationPoint) => {
     applyPointSelection(point);
     void autoFillAddressFromCoordinates(point);
   };
@@ -313,8 +320,11 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
           "No encontramos esa altura exacta en el geocodificador. Marcamos una posición aproximada de la calle; ajustala manualmente en el mapa.",
         );
       }
-    } catch {
-      setMapError("No pudimos ubicar la dirección. Probá de nuevo o marcá el punto manualmente.");
+    } catch (error: unknown) {
+      setMapError(getGeocodingErrorMessage(
+        error,
+        "No pudimos ubicar la dirección. Probá de nuevo o marcá el punto manualmente.",
+      ));
     } finally {
       setIsLocatingAddress(false);
     }

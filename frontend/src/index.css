@@ -60,10 +60,6 @@
   }
 }
 
-.leaflet-container {
-  font: inherit;
-}
-
 @layer components {
   .app-shell {
     @apply min-h-screen bg-background;
