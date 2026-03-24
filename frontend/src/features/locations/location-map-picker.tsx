@@ -90,7 +90,7 @@ function loadGoogleMapsScript(apiKey: string): Promise<void> {
     script.id = GOOGLE_MAPS_SCRIPT_ID;
     script.async = true;
     script.defer = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&language=es&region=AR`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&language=es&region=AR&loading=async`;
 
     script.onload = () => resolve();
     script.onerror = () => reject(new Error("No pudimos cargar Google Maps."));

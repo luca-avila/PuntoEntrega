@@ -36,7 +36,7 @@ export function ProtectedLayout() {
         <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:py-5">
           <div className="flex items-start justify-between gap-3 sm:items-center">
             <div className="min-w-0">
-            <h1 className="font-heading text-lg font-semibold">PuntoEntrega</h1>
+              <h1 className="font-heading text-lg font-semibold">PuntoEntrega</h1>
               <p className="truncate text-sm text-muted-foreground">
                 {user?.email ?? "Sesion activa"}
               </p>
@@ -76,7 +76,7 @@ export function ProtectedLayout() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-8">
+      <main className="mx-auto w-full max-w-6xl px-4 py-5 sm:py-6">
         <Outlet />
       </main>
     </div>
