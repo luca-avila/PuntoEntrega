@@ -31,12 +31,13 @@ No implementado (fuera de alcance MVP):
 
 Variables relevantes:
 - Backend: `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `SECRET_KEY`, `CORS_ORIGINS`, `FRONTEND_URL`, `RESEND_API_KEY`, `EMAIL_FROM`
-- Frontend: `VITE_API_BASE_URL`
+- Frontend: `VITE_API_BASE_URL`, `VITE_DEV_PROXY_TARGET` (solo desarrollo)
 
 Ejemplo:
 
 ```env
-VITE_API_BASE_URL=http://127.0.0.1:8002
+VITE_API_BASE_URL=/api
+VITE_DEV_PROXY_TARGET=http://127.0.0.1:8002
 ```
 
 ## Levantar backend con Docker

@@ -22,8 +22,8 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       ENVIRONMENT: ${ENVIRONMENT:-production}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      CORS_ORIGINS: '["https://auth.luca-dev.online"]'
-      FRONTEND_URL: ${FRONTEND_URL:-https://auth.luca-dev.online}
+      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:5173"]}
+      FRONTEND_URL: ${FRONTEND_URL:-https://puntoentrega.online}
       RESEND_API_KEY: ${RESEND_API_KEY}
       EMAIL_FROM: ${EMAIL_FROM}
     depends_on:
