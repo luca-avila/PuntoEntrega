@@ -63,17 +63,20 @@ export function ProductsListPage() {
       </div>
 
       <Card>
-        <CardContent className="flex flex-wrap items-center gap-2 p-4">
-          {FILTER_OPTIONS.map((option) => (
-            <Button
-              key={option.value}
-              onClick={() => setFilter(option.value)}
-              size="sm"
-              variant={filter === option.value ? "default" : "outline"}
-            >
-              {option.label}
-            </Button>
-          ))}
+        <CardContent className="px-4 py-5 sm:px-6 sm:py-6">
+          <div className="mx-auto flex w-full max-w-xl flex-wrap items-center justify-center gap-2 rounded-xl border border-border/70 bg-background/35 p-2.5">
+            {FILTER_OPTIONS.map((option) => (
+              <Button
+                key={option.value}
+                onClick={() => setFilter(option.value)}
+                size="sm"
+                variant={filter === option.value ? "default" : "outline"}
+                className="min-w-[110px]"
+              >
+                {option.label}
+              </Button>
+            ))}
+          </div>
         </CardContent>
       </Card>
 
