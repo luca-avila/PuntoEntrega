@@ -43,6 +43,7 @@ export interface GeocodingSuggestion {
   displayName: string;
   latitude: number;
   longitude: number;
+  hasHouseNumber: boolean;
 }
 
 function parseCoordinate(value: string | undefined): number | null {
@@ -211,6 +212,7 @@ function normalizeSearchResults(results: SearchNominatimItem[]): GeocodingSugges
         displayName: compactDisplay ?? fullAddress,
         latitude,
         longitude,
+        hasHouseNumber: Boolean(item.address?.house_number?.trim()),
       };
     })
     .filter((result): result is GeocodingSuggestion => result !== null);
@@ -275,5 +277,6 @@ export async function reverseGeocodeCoordinates(
     displayName: compactDisplay ?? fullAddress,
     latitude: parsedLatitude,
     longitude: parsedLongitude,
+    hasHouseNumber: Boolean(response.address?.house_number?.trim()),
   };
 }

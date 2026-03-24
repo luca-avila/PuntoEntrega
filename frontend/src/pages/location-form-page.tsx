@@ -51,10 +51,16 @@ const MIN_ADDRESS_QUERY_LENGTH = 3;
 const ADDRESS_SUGGESTIONS_DEBOUNCE_MS = 350;
 const PHONE_PATTERN = /^[0-9+\-()\s]+$/;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const STREET_NUMBER_PATTERN = /\b\d{1,5}\b/;
 
 function emptyToNull(value: string): string | null {
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function extractStreetNumber(address: string): string | null {
+  const match = address.match(STREET_NUMBER_PATTERN);
+  return match?.[0] ?? null;
 }
 
 function mapLocationToFormValues(location: LocationRead): LocationFormValues {
@@ -277,7 +283,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
 
     try {
       const results = await searchAddressSuggestions(addressQuery, {
-        limit: 1,
+        limit: 5,
       });
 
       if (results.length === 0) {
@@ -287,12 +293,26 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
         return;
       }
 
-      const firstResult = results[0];
-      setValue("address", firstResult.fullAddress, {
+      const requestedStreetNumber = extractStreetNumber(addressQuery);
+      const prioritizedResult = requestedStreetNumber
+        ? (results.find((result) => result.hasHouseNumber) ?? results[0])
+        : results[0];
+
+      const resolvedAddress = requestedStreetNumber && !prioritizedResult.hasHouseNumber
+        ? addressQuery
+        : prioritizedResult.fullAddress;
+
+      setValue("address", resolvedAddress, {
         shouldDirty: true,
         shouldValidate: true,
       });
-      applyPointSelection({ lat: firstResult.latitude, lng: firstResult.longitude });
+      applyPointSelection({ lat: prioritizedResult.latitude, lng: prioritizedResult.longitude });
+
+      if (requestedStreetNumber && !prioritizedResult.hasHouseNumber) {
+        setMapError(
+          "No encontramos esa altura exacta en el geocodificador. Marcamos una posición aproximada de la calle; ajustala manualmente en el mapa.",
+        );
+      }
     } catch {
       setMapError("No pudimos ubicar la dirección. Probá de nuevo o marcá el punto manualmente.");
     } finally {
