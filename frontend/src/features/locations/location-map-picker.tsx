@@ -52,11 +52,14 @@ type GoogleMapsWindow = Window & {
   google?: {
     maps?: GoogleMapsApi;
   };
+  __puntoEntregaGoogleMapsInit?: () => void;
 };
 
 const DEFAULT_CENTER: LocationPoint = { lat: -34.6037, lng: -58.3816 };
 const DEFAULT_ZOOM = 13;
 const GOOGLE_MAPS_SCRIPT_ID = "google-maps-js-api";
+const GOOGLE_MAPS_CALLBACK_NAME = "__puntoEntregaGoogleMapsInit";
+const GOOGLE_MAPS_LOAD_TIMEOUT_MS = 15000;
 
 let googleMapsScriptPromise: Promise<void> | null = null;
 
@@ -67,7 +70,7 @@ function loadGoogleMapsScript(apiKey: string): Promise<void> {
 
   const mapsWindow = window as GoogleMapsWindow;
 
-  if (mapsWindow.google?.maps) {
+  if (mapsWindow.google?.maps?.Map) {
     return Promise.resolve();
   }
 
@@ -79,21 +82,46 @@ function loadGoogleMapsScript(apiKey: string): Promise<void> {
     const existingScript = document.getElementById(GOOGLE_MAPS_SCRIPT_ID) as HTMLScriptElement | null;
 
     if (existingScript) {
-      existingScript.addEventListener("load", () => resolve(), { once: true });
-      existingScript.addEventListener("error", () => reject(new Error("No pudimos cargar Google Maps.")), {
-        once: true,
-      });
+      const startedAt = Date.now();
+      const waitForMaps = () => {
+        if (mapsWindow.google?.maps?.Map) {
+          resolve();
+          return;
+        }
+
+        if (Date.now() - startedAt > GOOGLE_MAPS_LOAD_TIMEOUT_MS) {
+          reject(new Error("Google Maps tardó demasiado en inicializar."));
+          return;
+        }
+
+        window.setTimeout(waitForMaps, 80);
+      };
+
+      waitForMaps();
       return;
     }
+
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error("Google Maps tardó demasiado en cargar."));
+    }, GOOGLE_MAPS_LOAD_TIMEOUT_MS);
+
+    mapsWindow[GOOGLE_MAPS_CALLBACK_NAME] = () => {
+      window.clearTimeout(timeoutId);
+      resolve();
+      delete mapsWindow[GOOGLE_MAPS_CALLBACK_NAME];
+    };
 
     const script = document.createElement("script");
     script.id = GOOGLE_MAPS_SCRIPT_ID;
     script.async = true;
     script.defer = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&language=es&region=AR&loading=async`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&language=es&region=AR&loading=async&callback=${GOOGLE_MAPS_CALLBACK_NAME}`;
 
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error("No pudimos cargar Google Maps."));
+    script.onerror = () => {
+      window.clearTimeout(timeoutId);
+      delete mapsWindow[GOOGLE_MAPS_CALLBACK_NAME];
+      reject(new Error("No pudimos cargar Google Maps."));
+    };
 
     document.head.appendChild(script);
   });
