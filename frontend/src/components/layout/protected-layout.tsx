@@ -33,39 +33,46 @@ export function ProtectedLayout() {
   return (
     <div className="app-shell">
       <header className="border-b border-border/70 bg-background/85 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
-          <div>
+        <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:py-5">
+          <div className="flex items-start justify-between gap-3 sm:items-center">
+            <div className="min-w-0">
             <h1 className="font-heading text-lg font-semibold">PuntoEntrega</h1>
-            <p className="text-sm text-muted-foreground">{user?.email ?? "Sesion activa"}</p>
-          </div>
+              <p className="truncate text-sm text-muted-foreground">
+                {user?.email ?? "Sesion activa"}
+              </p>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <nav className="flex flex-wrap items-center gap-2">
-              {navigationItems.map((item) => (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  className={({ isActive }) => {
-                    const isItemActive =
-                      item.to === "/entregas" ? isHistoryActive : isActive;
-
-                    return cn(
-                      "rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-                      isItemActive
-                        ? "border-primary/40 bg-primary/20 text-primary"
-                        : "border-border/70 bg-secondary/60 text-secondary-foreground hover:bg-secondary",
-                    );
-                  }}
-                >
-                  {item.label}
-                </NavLink>
-              ))}
-            </nav>
-
-            <Button disabled={isLoggingOut} onClick={handleLogout} variant="outline">
+            <Button
+              className="shrink-0"
+              disabled={isLoggingOut}
+              onClick={handleLogout}
+              variant="outline"
+            >
               {isLoggingOut ? "Cerrando..." : "Salir"}
             </Button>
           </div>
+
+          <nav className="mt-4 grid grid-cols-2 gap-2 sm:mt-3 sm:flex sm:flex-wrap sm:items-center sm:gap-2">
+            {navigationItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) => {
+                  const isItemActive =
+                    item.to === "/entregas" ? isHistoryActive : isActive;
+
+                  return cn(
+                    "flex min-h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors",
+                    isItemActive
+                      ? "border-primary/40 bg-primary/20 text-primary"
+                      : "border-border/70 bg-secondary/60 text-secondary-foreground hover:bg-secondary",
+                  );
+                }}
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
         </div>
       </header>
 
