@@ -228,7 +228,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
         return;
       }
 
-      setValue("address", geocodedAddress.displayName, {
+      setValue("address", geocodedAddress.fullAddress, {
         shouldDirty: true,
         shouldValidate: true,
       });
@@ -253,7 +253,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
   };
 
   const handleAddressSuggestionSelection = (suggestion: GeocodingSuggestion) => {
-    setValue("address", suggestion.displayName, {
+    setValue("address", suggestion.fullAddress, {
       shouldDirty: true,
       shouldValidate: true,
     });
@@ -288,7 +288,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
       }
 
       const firstResult = results[0];
-      setValue("address", firstResult.displayName, {
+      setValue("address", firstResult.fullAddress, {
         shouldDirty: true,
         shouldValidate: true,
       });
@@ -440,7 +440,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
                         {addressSuggestions.map((suggestion) => (
                           <button
                             className="w-full px-3 py-2 text-left text-sm hover:bg-secondary/65"
-                            key={`${suggestion.latitude}-${suggestion.longitude}-${suggestion.displayName}`}
+                            key={`${suggestion.latitude}-${suggestion.longitude}-${suggestion.fullAddress}`}
                             onMouseDown={(event) => {
                               event.preventDefault();
                               handleAddressSuggestionSelection(suggestion);

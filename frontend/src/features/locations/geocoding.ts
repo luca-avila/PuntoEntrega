@@ -39,6 +39,7 @@ interface NominatimRequestOptions {
 }
 
 export interface GeocodingSuggestion {
+  fullAddress: string;
   displayName: string;
   latitude: number;
   longitude: number;
@@ -79,6 +80,14 @@ function compactDisplayName(displayName: string | undefined): string | null {
   }
 
   return parts.slice(0, 2).join(", ");
+}
+
+function normalizeDisplayName(value: string | undefined): string | null {
+  const normalized = value?.trim();
+  if (!normalized) {
+    return null;
+  }
+  return normalized;
 }
 
 function buildStreetLabel(address?: NominatimAddress): string | null {
@@ -185,10 +194,11 @@ function normalizeSearchResults(results: SearchNominatimItem[]): GeocodingSugges
     .map((item) => {
       const latitude = parseCoordinate(item.lat);
       const longitude = parseCoordinate(item.lon);
-      const displayName = buildCompactAddressLabel(item.display_name, item.address);
+      const compactDisplay = buildCompactAddressLabel(item.display_name, item.address);
+      const fullAddress = normalizeDisplayName(item.display_name) ?? compactDisplay;
 
       if (
-        !displayName ||
+        !fullAddress ||
         latitude === null ||
         longitude === null ||
         !isArgentinaAddress(item.address)
@@ -197,7 +207,8 @@ function normalizeSearchResults(results: SearchNominatimItem[]): GeocodingSugges
       }
 
       return {
-        displayName,
+        fullAddress,
+        displayName: compactDisplay ?? fullAddress,
         latitude,
         longitude,
       };
@@ -247,10 +258,11 @@ export async function reverseGeocodeCoordinates(
 
   const parsedLatitude = parseCoordinate(response.lat);
   const parsedLongitude = parseCoordinate(response.lon);
-  const displayName = buildCompactAddressLabel(response.display_name, response.address);
+  const compactDisplay = buildCompactAddressLabel(response.display_name, response.address);
+  const fullAddress = normalizeDisplayName(response.display_name) ?? compactDisplay;
 
   if (
-    !displayName ||
+    !fullAddress ||
     parsedLatitude === null ||
     parsedLongitude === null ||
     !isArgentinaAddress(response.address)
@@ -259,7 +271,8 @@ export async function reverseGeocodeCoordinates(
   }
 
   return {
-    displayName,
+    fullAddress,
+    displayName: compactDisplay ?? fullAddress,
     latitude: parsedLatitude,
     longitude: parsedLongitude,
   };
