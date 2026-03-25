@@ -37,3 +37,21 @@ export function OrganizationRequiredRoute() {
 
   return <Outlet />;
 }
+
+export function OwnerOnlyRoute() {
+  const { status, isOwner } = useAuth();
+
+  if (status === "loading") {
+    return (
+      <div className="auth-shell text-sm text-muted-foreground">
+        Cargando sesión...
+      </div>
+    );
+  }
+
+  if (!isOwner) {
+    return <Navigate replace to="/" />;
+  }
+
+  return <Outlet />;
+}

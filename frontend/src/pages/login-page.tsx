@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 interface LoginFormValues {
   email: string;
@@ -40,12 +40,29 @@ function mapLoginErrorToMessage(error: unknown): string {
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { status, login } = useAuth();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const isRegistered = searchParams.get("registered") === "1";
   const isVerified = searchParams.get("verified") === "1";
   const isPasswordReset = searchParams.get("passwordReset") === "1";
+  const nextPath = searchParams.get("next");
+  const fromState = (
+    location.state as
+      | {
+          from?: {
+            pathname?: string;
+            search?: string;
+          };
+        }
+      | undefined
+  )?.from;
+  const redirectTarget = nextPath?.startsWith("/")
+    ? nextPath
+    : fromState?.pathname
+      ? `${fromState.pathname}${fromState.search ?? ""}`
+      : "/";
 
   const {
     register,
@@ -60,15 +77,15 @@ export function LoginPage() {
 
   useEffect(() => {
     if (status === "authenticated") {
-      navigate("/", { replace: true });
+      navigate(redirectTarget, { replace: true });
     }
-  }, [status, navigate]);
+  }, [status, navigate, redirectTarget]);
 
   const onSubmit = handleSubmit(async (formValues) => {
     setSubmitError(null);
     try {
       await login(formValues);
-      navigate("/", { replace: true });
+      navigate(redirectTarget, { replace: true });
     } catch (error) {
       setSubmitError(mapLoginErrorToMessage(error));
     }

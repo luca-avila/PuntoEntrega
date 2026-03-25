@@ -1,118 +1,130 @@
-# PR E - Frontend Onboarding + Ownership Context
+# PR F - Frontend Equipo/Invitaciones + Aceptación Pública + Solicitud de Productos
 
 ## 1) Objetivo del PR
 
-Implementar en frontend el onboarding de organización y el contexto de ownership para soportar el nuevo flujo:
+Implementar en frontend los flujos funcionales que consumen las features backend ya cerradas en PR C y PR D:
 
-- Usuario se registra/inicia sesión sin organización.
-- Si no tiene organización, debe ir a onboarding (`/onboarding/organizacion`).
-- Si ya tiene organización, accede al resto de rutas protegidas.
-- El frontend debe conocer la organización actual y si el usuario es owner para siguientes PRs.
+- Gestión de equipo e invitaciones (owner).
+- Aceptación pública de invitación por token.
+- Solicitud de productos desde la pantalla de productos (member).
 
-Este PR debe dejar la base funcional de navegación y contexto para owner/member sin incluir todavía UI de invitaciones ni solicitudes de productos.
+Este PR debe dejar la experiencia end-to-end utilizable sin agregar nuevas reglas backend.
 
 ## 2) Alcance exacto (in scope)
 
-- Nueva pantalla de onboarding de organización.
-- Guard global de rutas para bloquear flujo de negocio sin organización.
-- Contratos/API frontend para organizaciones (`POST /organizations`, `GET /organizations/current`).
-- Extensión del contexto de autenticación para exponer organización actual + ownership.
-- Ajustes de copy/flujo en pantallas de auth para reflejar onboarding posterior al login.
+- Nueva ruta `/equipo` para owner:
+  - listado de miembros (`GET /organization-members`)
+  - formulario de invitación (`POST /organization-invitations`)
+  - listado de invitaciones (`GET /organization-invitations`)
+  - cancelar invitación (`POST /organization-invitations/{id}/cancel`)
+- Nueva página pública `/aceptar-invitacion`:
+  - validación token (`GET /organization-invitations/accept-info`)
+  - aceptación con cuenta nueva (`POST /organization-invitations/accept`)
+  - aceptación autenticada (`POST /organization-invitations/accept-authenticated`)
+- Integración de solicitud de productos en `/productos` para member:
+  - formulario simple asunto + mensaje
+  - alta via `POST /product-requests`
+- Contratos y API clients frontend para invitations/product-requests/organization-members.
 
 ## 3) Fuera de alcance (out of scope)
 
-- UI de equipo e invitaciones (`/equipo`).
-- UI pública de aceptación de invitación.
-- UI de product requests en `/productos`.
-- Cambios backend adicionales.
+- Rework visual profundo del layout general.
+- Nuevos permisos backend o cambios de negocio.
+- Auditoría frontend completa de product requests para owner (queda para PR posterior si se necesita vista dedicada).
+- Cambios de infraestructura/testing E2E automatizado.
 
 ## 4) Cambios técnicos detallados
 
-### 4.1 Contratos y API frontend
+### 4.1 API y contratos frontend
 
 Crear:
 
-1. `frontend/src/api/contracts/organizations.ts`
-   - `OrganizationCreate` (`name`).
-   - `OrganizationRead` (`id`, `name`, `slug`, `owner_user_id`, `is_active`).
+1. `frontend/src/api/contracts/invitations.ts`
+   - `OrganizationInvitationCreate`
+   - `OrganizationInvitationRead`
+   - `OrganizationInvitationAcceptInfoRead`
+   - `OrganizationInvitationAcceptCreate`
+   - `OrganizationInvitationAcceptAuthenticated`
+   - `OrganizationInvitationAcceptResult`
 
-2. `frontend/src/api/organizations-api.ts`
-   - `create(payload)` -> `POST /organizations`
-   - `getCurrent()` -> `GET /organizations/current`
+2. `frontend/src/api/invitations-api.ts`
+   - `create`, `list`, `cancel`
+   - `getAcceptInfo`
+   - `acceptNewAccount`
+   - `acceptAuthenticated`
+
+3. `frontend/src/api/contracts/product-requests.ts`
+   - `ProductRequestCreate`
+   - `ProductRequestRead`
+
+4. `frontend/src/api/product-requests-api.ts`
+   - `create`
+   - (opcional helper `list` para uso futuro owner)
+
+5. `frontend/src/api/contracts/organization-members.ts`
+   - `OrganizationMemberRead`
+
+6. `frontend/src/api/organization-members-api.ts`
+   - `list`
+
+Actualizar exports de `api/index.ts` y `api/contracts/index.ts`.
+
+### 4.2 Pantalla `/equipo` (owner)
+
+Crear `frontend/src/pages/team-page.tsx`:
+
+- Sección 1: miembros actuales (owner + members), usando `organization-members-api`.
+- Sección 2: invitar por email:
+  - React Hook Form (`email`)
+  - submit a `invitationsApi.create`
+  - feedback de éxito/error.
+- Sección 3: invitaciones:
+  - listado con estado (`pending|accepted|expired|cancelled`)
+  - acción “Cancelar” solo para `pending`.
+
+Permisos frontend:
+- mostrar acceso a `/equipo` solo si `isOwner`.
+- si no owner, redirigir a `/`.
+
+### 4.3 Aceptación pública `/aceptar-invitacion`
+
+Crear `frontend/src/pages/accept-invitation-page.tsx`:
+
+- Leer `token` desde query string.
+- Cargar `accept-info`.
+- Estados de pantalla:
+  - token inválido / expirado / cancelado / aceptado.
+  - token válido.
+- Si válido:
+  - Cuenta nueva: formulario contraseña + confirmar, POST `/accept`.
+  - Cuenta existente:
+    - si no autenticado: CTA a login preservando retorno.
+    - si autenticado: botón aceptar autenticada (POST `/accept-authenticated`).
+- Mostrar mensajes backend de conflicto (email no coincide, usuario ya en org, etc.).
+
+### 4.4 Solicitud de productos (member)
+
+Actualizar `frontend/src/pages/products-list-page.tsx`:
+
+- Si `isOwner`:
+  - mantener comportamiento actual (alta/edición).
+- Si `!isOwner`:
+  - ocultar CTA de “Nuevo producto” y acciones de edición.
+  - mostrar bloque “Solicitar producto” con formulario:
+    - `subject` (max 255)
+    - `message` (mínimo 10)
+  - submit a `productRequestsApi.create`.
+  - feedback de envío y errores.
+
+### 4.5 Navegación y accesos
 
 Actualizar:
 
-1. `frontend/src/api/contracts/auth.ts`
-   - remover `role` de `SessionUser` (ya no existe en backend).
-   - mantener `organization_id: string | null`.
-
-2. `frontend/src/api/contracts/index.ts` y `frontend/src/api/index.ts`
-   - exportar contratos/API de organizaciones.
-
-### 4.2 Contexto de ownership
-
-Actualizar `frontend/src/features/auth/auth-context-store.ts` y `auth-context.tsx` para exponer:
-
-- `organization: OrganizationRead | null`
-- `isOwner: boolean`
-- `refreshOrganization(): Promise<void>`
-
-Comportamiento esperado:
-
-1. Luego de `refreshSession`, si `user.organization_id` es `null`:
-   - `organization = null`
-   - `isOwner = false`
-
-2. Si `user.organization_id` existe:
-   - cargar `organizationsApi.getCurrent()`
-   - `isOwner = organization.owner_user_id === user.id`
-
-3. En `logout` o `401`:
-   - limpiar `user`, `organization` e `isOwner`.
-
-Objetivo:
-- tener ownership disponible globalmente para PR F sin duplicar lógica por pantalla.
-
-### 4.3 Pantalla onboarding
-
-Crear `frontend/src/pages/organization-onboarding-page.tsx`:
-
-- Formulario simple con React Hook Form:
-  - `name` obligatorio, trim.
-- Submit a `organizationsApi.create`.
-- En éxito:
-  - refrescar auth/context (`refreshSession` y/o `refreshOrganization`)
-  - redirigir a `/`.
-- Manejo de errores API consistente con mensajes amigables.
-
-UX mínima:
-- usar componentes existentes (`Card`, `Input`, `Button`, `Label`).
-- texto orientado a “crear tu organización para continuar”.
-
-### 4.4 Guard global de rutas
-
-Implementar guard para organización dentro del flujo protegido:
-
-1. Si no autenticado -> `/iniciar-sesion` (comportamiento actual).
-2. Si autenticado y `organization_id === null`:
-   - permitir solo `/onboarding/organizacion`
-   - redirigir cualquier otra ruta protegida a onboarding.
-3. Si autenticado y ya tiene organización:
-   - redirigir `/onboarding/organizacion` hacia `/`.
-
-Aplicar en `frontend/src/App.tsx` usando `ProtectedRoute` y un guard adicional (componente nuevo o extensión del actual).
-
-### 4.5 Ruteo y flujo de navegación
-
-Actualizar `frontend/src/App.tsx`:
-
-- agregar ruta protegida `/onboarding/organizacion`.
-- mantener el resto de rutas de negocio detrás del guard de organización.
-
-Ajustar textos en auth:
-
-- `register-page.tsx`: reflejar que primero se crea cuenta y luego organización.
-- `login-page.tsx`: mantener redirección normal, pero el guard decidirá onboarding vs app.
+- `frontend/src/App.tsx`:
+  - ruta protegida `/equipo` (owner).
+  - ruta pública `/aceptar-invitacion`.
+- `frontend/src/components/layout/protected-layout.tsx`:
+  - agregar nav item “Equipo” solo para owner.
 
 ## 5) Verificación y checks del PR
 
@@ -123,42 +135,46 @@ Ejecutar:
 
 Smoke manual:
 
-1. Usuario nuevo:
-   - registro + login -> redirección a `/onboarding/organizacion`.
-2. Crear organización:
-   - submit exitoso -> redirección a `/`.
-3. Usuario con organización:
-   - login -> entra a `/` sin pasar por onboarding.
-4. Intento manual de entrar a `/onboarding/organizacion` con org creada:
-   - redirección a `/`.
-5. Logout:
-   - vuelve a estado no autenticado.
+1. Owner:
+   - entra a `/equipo`
+   - invita email
+   - ve invitación en listado
+   - cancela invitación pending
+2. Invitado:
+   - abre `/aceptar-invitacion?token=...`
+   - valida estado
+   - acepta con cuenta nueva y con cuenta autenticada
+3. Member:
+   - entra a `/productos`
+   - ve formulario de solicitud y puede enviar
+4. Owner:
+   - no ve formulario member en `/productos`
 
 ## 6) Riesgos y mitigaciones
 
-Riesgo: bucles de redirección entre rutas protegidas y onboarding.
-- Mitigación: centralizar reglas de redirección en un único guard.
+Riesgo: incoherencia entre permisos backend y UI visible.
+- Mitigación: usar `isOwner` del `AuthContext` para visibilidad de acciones y rutas.
 
-Riesgo: estado inconsistente entre `user.organization_id` y `organizations/current`.
-- Mitigación: refrescar organización desde backend al iniciar sesión y luego de crear organización.
+Riesgo: UX confusa en aceptación con login intermedio.
+- Mitigación: preservar `token` en query y redirigir de vuelta al flujo público.
 
-Riesgo: UI futura replique lógica owner/member.
-- Mitigación: exponer `isOwner` desde contexto compartido.
+Riesgo: errores de API no claros para el usuario final.
+- Mitigación: mapear `detail` del backend y mostrar feedback contextual en cada formulario.
 
-## 7) Criterios de aceptación del PR E
+## 7) Criterios de aceptación del PR F
 
-- Existe pantalla funcional `/onboarding/organizacion`.
-- Usuario autenticado sin organización no puede usar rutas de negocio.
-- Crear organización desde onboarding redirige correctamente al home.
-- `SessionUser` en frontend no usa `role`.
-- Contexto frontend expone organización actual e `isOwner`.
-- `lint` y `build` de frontend en verde.
+- Owner puede gestionar miembros e invitaciones desde `/equipo`.
+- Flujo de `/aceptar-invitacion` funciona para token válido e inválido.
+- Aceptación con cuenta nueva y autenticada disponibles en UI.
+- Member puede solicitar productos desde `/productos`.
+- Owner no ve acciones de member en `/productos`.
+- `lint` y `build` frontend en verde.
 
 ## 8) Secuencia de implementación sugerida (orden interno)
 
-1. Contratos/API de organizaciones + ajuste de contrato auth.
-2. Extender contexto auth con organización e `isOwner`.
-3. Crear página de onboarding.
-4. Implementar guard de organización y actualizar rutas.
-5. Ajustes de copy en auth pages.
+1. API contracts + clients (invitations/product-requests/members).
+2. Página `/equipo` con invitaciones.
+3. Página pública `/aceptar-invitacion`.
+4. Integración solicitud member en `/productos`.
+5. Rutas/nav y controles por owner/member.
 6. Lint/build + smoke final.

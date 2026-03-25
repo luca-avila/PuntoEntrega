@@ -2,8 +2,10 @@ import { ProtectedLayout } from "@/components/layout/protected-layout";
 import { AuthProvider } from "@/features/auth/auth-context";
 import {
   OnboardingOnlyRoute,
+  OwnerOnlyRoute,
   OrganizationRequiredRoute,
 } from "@/features/auth/organization-route";
+import { AcceptInvitationPage } from "@/pages/accept-invitation-page";
 import { ProtectedRoute } from "@/features/auth/protected-route";
 import { DeliveriesHistoryPage } from "@/pages/deliveries-history-page";
 import { DeliveryDetailPage } from "@/pages/delivery-detail-page";
@@ -18,6 +20,7 @@ import { ProductsListPage } from "@/pages/products-list-page";
 import { RegisterPage } from "@/pages/register-page";
 import { ForgotPasswordPage } from "@/pages/forgot-password-page";
 import { ResetPasswordPage } from "@/pages/reset-password-page";
+import { TeamPage } from "@/pages/team-page";
 import { VerifyEmailPage } from "@/pages/verify-email-page";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
@@ -33,6 +36,7 @@ export default function App() {
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/verificar-email" element={<VerifyEmailPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/aceptar-invitacion" element={<AcceptInvitationPage />} />
 
           <Route element={<ProtectedRoute />}>
             <Route element={<OnboardingOnlyRoute />}>
@@ -69,6 +73,10 @@ export default function App() {
                   path="/productos/:productId/editar"
                   element={<ProductFormPage mode="edit" />}
                 />
+
+                <Route element={<OwnerOnlyRoute />}>
+                  <Route path="/equipo" element={<TeamPage />} />
+                </Route>
               </Route>
             </Route>
           </Route>
