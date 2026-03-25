@@ -1,179 +1,164 @@
-# PR D - Backend Product Requests
+# PR E - Frontend Onboarding + Ownership Context
 
 ## 1) Objetivo del PR
 
-Implementar la feature de solicitudes de productos en backend sobre el modelo owner/member ya vigente:
+Implementar en frontend el onboarding de organización y el contexto de ownership para soportar el nuevo flujo:
 
-- Un `member` puede crear una solicitud de producto para su organización.
-- El backend persiste la solicitud y notifica por email al owner.
-- El owner puede auditar solicitudes desde un listado.
+- Usuario se registra/inicia sesión sin organización.
+- Si no tiene organización, debe ir a onboarding (`/onboarding/organizacion`).
+- Si ya tiene organización, accede al resto de rutas protegidas.
+- El frontend debe conocer la organización actual y si el usuario es owner para siguientes PRs.
 
-Este PR debe dejar product requests funcionales de punta a punta en backend (persistencia + reglas + API + email/background + tests), sin incluir cambios de frontend.
+Este PR debe dejar la base funcional de navegación y contexto para owner/member sin incluir todavía UI de invitaciones ni solicitudes de productos.
 
 ## 2) Alcance exacto (in scope)
 
-- Nueva tabla `product_requests` con migración Alembic.
-- Nueva feature `backend/features/product_requests/` (`models`, `schemas`, `service`, `email`, `api/routes`, `wiring`).
-- Endpoint de creación para `member`: `POST /product-requests`.
-- Endpoint de listado para `owner`: `GET /product-requests`.
-- Envío de email al owner en background con estado/reintentos.
-- Tests backend completos de permisos, reglas y estados de email.
+- Nueva pantalla de onboarding de organización.
+- Guard global de rutas para bloquear flujo de negocio sin organización.
+- Contratos/API frontend para organizaciones (`POST /organizations`, `GET /organizations/current`).
+- Extensión del contexto de autenticación para exponer organización actual + ownership.
+- Ajustes de copy/flujo en pantallas de auth para reflejar onboarding posterior al login.
 
 ## 3) Fuera de alcance (out of scope)
 
-- Cambios frontend/UI de solicitud.
-- Cambios de invitaciones (ya cubiertos en PR C).
-- Nuevos roles/permisos más allá de owner/member.
-- Automatizaciones externas adicionales (colas, workers dedicados, etc.).
+- UI de equipo e invitaciones (`/equipo`).
+- UI pública de aceptación de invitación.
+- UI de product requests en `/productos`.
+- Cambios backend adicionales.
 
 ## 4) Cambios técnicos detallados
 
-### 4.1 Migración Alembic
+### 4.1 Contratos y API frontend
 
-Crear una nueva migración:
+Crear:
 
-- `backend/alembic/versions/0005_create_product_requests.py`
+1. `frontend/src/api/contracts/organizations.ts`
+   - `OrganizationCreate` (`name`).
+   - `OrganizationRead` (`id`, `name`, `slug`, `owner_user_id`, `is_active`).
 
-Tabla `product_requests`:
+2. `frontend/src/api/organizations-api.ts`
+   - `create(payload)` -> `POST /organizations`
+   - `getCurrent()` -> `GET /organizations/current`
 
-1. `id` UUID PK.
-2. `organization_id` UUID FK -> `organizations.id` (ondelete=`CASCADE`, index).
-3. `requested_by_user_id` UUID FK -> `user.id` (ondelete=`RESTRICT`, index).
-4. `subject` string(255), obligatorio.
-5. `message` text/string largo, obligatorio.
-6. `email_status` enum/string: `pending|sent|failed` (index).
-7. `email_attempts` int default 0.
-8. `email_last_error` text nullable.
-9. `email_sent_at` datetime tz nullable.
-10. `created_at`, `updated_at`.
+Actualizar:
 
-Compatibilidad:
-- Mantener soporte SQLite en tests.
+1. `frontend/src/api/contracts/auth.ts`
+   - remover `role` de `SessionUser` (ya no existe en backend).
+   - mantener `organization_id: string | null`.
 
-### 4.2 Modelo SQLAlchemy
+2. `frontend/src/api/contracts/index.ts` y `frontend/src/api/index.ts`
+   - exportar contratos/API de organizaciones.
 
-Crear `backend/features/product_requests/models.py` con:
+### 4.2 Contexto de ownership
 
-- Enum `ProductRequestEmailStatus`.
-- Modelo `ProductRequest` con campos y relaciones mínimas (`organization`, `requested_by_user`).
+Actualizar `frontend/src/features/auth/auth-context-store.ts` y `auth-context.tsx` para exponer:
 
-Actualizar `backend/features/models_registry.py` para registrar el módulo nuevo.
+- `organization: OrganizationRead | null`
+- `isOwner: boolean`
+- `refreshOrganization(): Promise<void>`
 
-### 4.3 Schemas Pydantic
+Comportamiento esperado:
 
-Crear `backend/features/product_requests/schemas.py`:
+1. Luego de `refreshSession`, si `user.organization_id` es `null`:
+   - `organization = null`
+   - `isOwner = false`
 
-1. `ProductRequestCreate`
-   - `subject` obligatorio, max 255.
-   - `message` obligatorio, mínimo razonable (ej. 10 chars), trim.
+2. Si `user.organization_id` existe:
+   - cargar `organizationsApi.getCurrent()`
+   - `isOwner = organization.owner_user_id === user.id`
 
-2. `ProductRequestRead`
-   - incluir ids clave, `subject`, `message`, `email_status`, `email_attempts`, `email_last_error`, `email_sent_at`, `created_at`.
+3. En `logout` o `401`:
+   - limpiar `user`, `organization` e `isOwner`.
 
-3. `ProductRequestListFilters` (opcional si necesitás filtros simples por status/fecha).
+Objetivo:
+- tener ownership disponible globalmente para PR F sin duplicar lógica por pantalla.
 
-### 4.4 Servicio de product requests
+### 4.3 Pantalla onboarding
 
-Crear `backend/features/product_requests/service.py` con casos de uso explícitos:
+Crear `frontend/src/pages/organization-onboarding-page.tsx`:
 
-1. `create_product_request(...)`
-   - Requiere usuario autenticado perteneciente a organización.
-   - Solo `member` puede crear; `owner` recibe `403`.
-   - Persiste la request en estado `pending`.
-   - Commit antes de disparar email.
+- Formulario simple con React Hook Form:
+  - `name` obligatorio, trim.
+- Submit a `organizationsApi.create`.
+- En éxito:
+  - refrescar auth/context (`refreshSession` y/o `refreshOrganization`)
+  - redirigir a `/`.
+- Manejo de errores API consistente con mensajes amigables.
 
-2. `list_product_requests_for_organization(...)`
-   - Solo `owner`.
-   - Orden recomendado: más nuevas primero.
+UX mínima:
+- usar componentes existentes (`Card`, `Input`, `Button`, `Label`).
+- texto orientado a “crear tu organización para continuar”.
 
-3. `send_product_request_email_in_background(...)`
-   - Patrón equivalente a deliveries:
-     - reintentos acotados (`EMAIL_SEND_MAX_ATTEMPTS`)
-     - delay entre intentos
-     - termina en `sent` o `failed`
-   - Resolver owner desde `organizations.owner_user_id`.
-   - Enviar solo si owner está activo y verificado.
-   - Si no hay owner enviable: marcar `failed` con error explícito.
-   - Guardar `email_attempts`, `email_last_error`, `email_sent_at`.
+### 4.4 Guard global de rutas
 
-Regla crítica:
-- Si el envío falla, la solicitud NO se pierde: debe quedar persistida con estado final consistente.
+Implementar guard para organización dentro del flujo protegido:
 
-### 4.5 Email de solicitud
+1. Si no autenticado -> `/iniciar-sesion` (comportamiento actual).
+2. Si autenticado y `organization_id === null`:
+   - permitir solo `/onboarding/organizacion`
+   - redirigir cualquier otra ruta protegida a onboarding.
+3. Si autenticado y ya tiene organización:
+   - redirigir `/onboarding/organizacion` hacia `/`.
 
-Crear `backend/features/product_requests/email.py`:
+Aplicar en `frontend/src/App.tsx` usando `ProtectedRoute` y un guard adicional (componente nuevo o extensión del actual).
 
-- Reusar infraestructura de email existente (Resend + config actual).
-- Subject sugerido: `"Nueva solicitud de producto - {organization_name}"`.
-- Body con: organización, requester email, asunto, mensaje, fecha.
+### 4.5 Ruteo y flujo de navegación
 
-### 4.6 API Routes + Wiring
+Actualizar `frontend/src/App.tsx`:
 
-Crear `backend/features/product_requests/api/routes.py`:
+- agregar ruta protegida `/onboarding/organizacion`.
+- mantener el resto de rutas de negocio detrás del guard de organización.
 
-1. `POST /product-requests` (member)
-2. `GET /product-requests` (owner)
+Ajustar textos en auth:
 
-Integración:
-- `backend/features/product_requests/wiring.py`
-- Montar router en `backend/app/api.py` (tag `product-requests`).
+- `register-page.tsx`: reflejar que primero se crea cuenta y luego organización.
+- `login-page.tsx`: mantener redirección normal, pero el guard decidirá onboarding vs app.
 
-Handlers finos:
-- validan payload/dependencias
-- delegan reglas al service
-- disparan background task desde router (`BackgroundTasks`)
-
-## 5) Ajustes de tests backend
-
-Crear `backend/tests/test_product_requests.py` con cobertura mínima:
-
-1. `member` puede crear request (`201`).
-2. `owner` no puede crear request (`403`).
-3. no autenticado recibe `401` en creación/listado protegidos.
-4. `owner` puede listar requests de su organización.
-5. `member` no puede listar requests (`403`).
-6. creación persiste request con `email_status=pending` antes del envío.
-7. envío exitoso marca `sent`, incrementa intentos y setea `email_sent_at`.
-8. falla de envío termina en `failed` y conserva request.
-9. si owner no enviable (inactivo/no verificado/sin email válido), queda `failed`.
-10. aislamiento multi-tenant en listado y creación.
-
-## 6) Verificación y checks del PR
+## 5) Verificación y checks del PR
 
 Ejecutar:
 
-1. `cd backend && uv run alembic upgrade head`
-2. `cd backend && uv run pytest -q`
-3. Smoke manual:
-   - member crea request
-   - owner lista requests
-   - validar transición de email `pending -> sent|failed`
+1. `cd frontend && npm run lint`
+2. `cd frontend && npm run build`
 
-## 7) Riesgos y mitigaciones
+Smoke manual:
 
-Riesgo: acoplar creación al envío y perder solicitudes cuando falla email.
-- Mitigación: persistir y commitear request antes del envío en background.
+1. Usuario nuevo:
+   - registro + login -> redirección a `/onboarding/organizacion`.
+2. Crear organización:
+   - submit exitoso -> redirección a `/`.
+3. Usuario con organización:
+   - login -> entra a `/` sin pasar por onboarding.
+4. Intento manual de entrar a `/onboarding/organizacion` con org creada:
+   - redirección a `/`.
+5. Logout:
+   - vuelve a estado no autenticado.
 
-Riesgo: estados inconsistentes por reintentos concurrentes.
-- Mitigación: guardas de idempotencia y actualización de estado en un único flujo.
+## 6) Riesgos y mitigaciones
 
-Riesgo: envío a owner inválido (inactivo/no verificado).
-- Mitigación: validar destinatario antes de enviar y registrar motivo de `failed`.
+Riesgo: bucles de redirección entre rutas protegidas y onboarding.
+- Mitigación: centralizar reglas de redirección en un único guard.
 
-## 8) Criterios de aceptación del PR D
+Riesgo: estado inconsistente entre `user.organization_id` y `organizations/current`.
+- Mitigación: refrescar organización desde backend al iniciar sesión y luego de crear organización.
 
-- Feature `product_requests` creada e integrada al app.
-- `member` crea solicitudes correctamente.
-- `owner` puede listar solicitudes de su organización.
-- Envío de email corre en background con retries y estado final consistente.
-- Si falla envío o no hay owner enviable, la request queda persistida con `failed`.
-- Suite backend en verde.
+Riesgo: UI futura replique lógica owner/member.
+- Mitigación: exponer `isOwner` desde contexto compartido.
 
-## 9) Secuencia de implementación sugerida (orden interno)
+## 7) Criterios de aceptación del PR E
 
-1. Migración + modelo `ProductRequest`.
-2. Schemas y servicio de reglas core (crear/listar).
-3. Email + background sender con retries.
-4. API routes + wiring.
-5. Tests completos de product requests.
-6. Run tests + smoke final.
+- Existe pantalla funcional `/onboarding/organizacion`.
+- Usuario autenticado sin organización no puede usar rutas de negocio.
+- Crear organización desde onboarding redirige correctamente al home.
+- `SessionUser` en frontend no usa `role`.
+- Contexto frontend expone organización actual e `isOwner`.
+- `lint` y `build` de frontend en verde.
+
+## 8) Secuencia de implementación sugerida (orden interno)
+
+1. Contratos/API de organizaciones + ajuste de contrato auth.
+2. Extender contexto auth con organización e `isOwner`.
+3. Crear página de onboarding.
+4. Implementar guard de organización y actualizar rutas.
+5. Ajustes de copy en auth pages.
+6. Lint/build + smoke final.
