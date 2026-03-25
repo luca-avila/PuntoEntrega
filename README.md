@@ -54,6 +54,14 @@ docker compose up --build
 
 Backend disponible en `http://127.0.0.1:8002`.
 
+Aplicar migraciones (idempotente, recomendado al iniciar y después de cada `git pull`):
+
+```bash
+docker compose run --rm backend uv run alembic upgrade head
+```
+
+Si usás el script `scripts/deploy_backend.sh`, este paso ya se ejecuta automáticamente.
+
 ## Levantar frontend (desarrollo)
 
 ```bash

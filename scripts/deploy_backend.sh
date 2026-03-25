@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yaml"
 SERVICE_NAME="backend"
+DB_SERVICE_NAME="db"
 HEALTHCHECK_URL="http://127.0.0.1:8002/health"
 
 require_root() {
@@ -36,6 +37,35 @@ healthcheck() {
   return 1
 }
 
+wait_for_db_health() {
+  echo "==> Waiting for database health..."
+  local db_container_id
+  db_container_id="$(docker compose -f "$COMPOSE_FILE" ps -q "$DB_SERVICE_NAME")"
+  if [[ -z "$db_container_id" ]]; then
+    echo "❌ Could not resolve container id for service: $DB_SERVICE_NAME"
+    return 1
+  fi
+
+  for i in {1..60}; do
+    local health_status
+    health_status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}unknown{{end}}' "$db_container_id")"
+    if [[ "$health_status" == "healthy" ]]; then
+      echo "✅ Database is healthy."
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "❌ Database did not become healthy in time."
+  return 1
+}
+
+run_migrations() {
+  echo "==> Running database migrations..."
+  docker compose -f "$COMPOSE_FILE" run --rm "$SERVICE_NAME" uv run alembic upgrade head
+  echo "✅ Database migrations applied."
+}
+
 main() {
   require_root
   check_paths
@@ -44,6 +74,12 @@ main() {
 
   echo "==> Building backend image..."
   docker compose -f "$COMPOSE_FILE" build "$SERVICE_NAME"
+
+  echo "==> Starting database service..."
+  docker compose -f "$COMPOSE_FILE" up -d "$DB_SERVICE_NAME"
+  wait_for_db_health
+
+  run_migrations
 
   echo "==> Recreating backend container..."
   docker compose -f "$COMPOSE_FILE" up -d --force-recreate "$SERVICE_NAME"
