@@ -32,7 +32,7 @@ export function OrganizationRequiredRoute() {
   }
 
   if (!user?.organization_id) {
-    return <Navigate replace to="/onboarding/organizacion" state={{ from: location }} />;
+    return <Navigate replace to="/organizacion/crear" state={{ from: location }} />;
   }
 
   return <Outlet />;

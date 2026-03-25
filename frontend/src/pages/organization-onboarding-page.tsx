@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { getApiErrorMessage } from "@/lib/errors";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 
 interface OrganizationOnboardingFormValues {
   name: string;
@@ -15,8 +15,24 @@ interface OrganizationOnboardingFormValues {
 
 export function OrganizationOnboardingPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { status, user, refreshSession } = useAuth();
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const fromState = (
+    location.state as
+      | {
+          from?: {
+            pathname?: string;
+            search?: string;
+          };
+        }
+      | undefined
+  )?.from;
+  const redirectTarget = fromState?.pathname?.startsWith("/")
+    && fromState.pathname !== "/organizacion/crear"
+    && fromState.pathname !== "/onboarding/organizacion"
+    ? `${fromState.pathname}${fromState.search ?? ""}`
+    : "/";
 
   const {
     register,
@@ -30,9 +46,9 @@ export function OrganizationOnboardingPage() {
 
   useEffect(() => {
     if (status === "authenticated" && user?.organization_id) {
-      navigate("/", { replace: true });
+      navigate(redirectTarget, { replace: true });
     }
-  }, [status, user, navigate]);
+  }, [status, user, navigate, redirectTarget]);
 
   const onSubmit = handleSubmit(async (formValues) => {
     setSubmitError(null);
@@ -41,7 +57,7 @@ export function OrganizationOnboardingPage() {
         name: formValues.name,
       });
       await refreshSession();
-      navigate("/", { replace: true });
+      navigate(redirectTarget, { replace: true });
     } catch (error) {
       setSubmitError(
         getApiErrorMessage(
@@ -58,7 +74,7 @@ export function OrganizationOnboardingPage() {
         <CardHeader>
           <CardTitle className="text-center">Creá tu organización</CardTitle>
           <CardDescription className="text-center">
-            Para continuar, configurá el nombre de tu organización.
+            Podés hacerlo ahora o más adelante. Al crearla quedás como owner.
           </CardDescription>
         </CardHeader>
         <CardContent>

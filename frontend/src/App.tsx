@@ -39,17 +39,20 @@ export default function App() {
           <Route path="/aceptar-invitacion" element={<AcceptInvitationPage />} />
 
           <Route element={<ProtectedRoute />}>
-            <Route element={<OnboardingOnlyRoute />}>
-              <Route
-                path="/onboarding/organizacion"
-                element={<OrganizationOnboardingPage />}
-              />
-            </Route>
+            <Route element={<ProtectedLayout />}>
+              <Route path="/" element={<HomePage />} />
+              <Route element={<OnboardingOnlyRoute />}>
+                <Route
+                  path="/organizacion/crear"
+                  element={<OrganizationOnboardingPage />}
+                />
+                <Route
+                  path="/onboarding/organizacion"
+                  element={<Navigate replace to="/organizacion/crear" />}
+                />
+              </Route>
 
-            <Route element={<OrganizationRequiredRoute />}>
-              <Route element={<ProtectedLayout />}>
-                <Route path="/" element={<HomePage />} />
-
+              <Route element={<OrganizationRequiredRoute />}>
                 <Route path="/entregas" element={<DeliveriesHistoryPage />} />
                 <Route path="/entregas/:deliveryId" element={<DeliveryDetailPage />} />
 

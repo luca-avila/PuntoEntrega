@@ -111,11 +111,12 @@ npm run build
 
 ## Flujos funcionales clave
 
-1. Registro -> login -> onboarding (`/onboarding/organizacion`) -> app.
-2. Owner invita miembro desde `/equipo`.
-3. Invitado acepta por `/aceptar-invitacion?token=...` (cuenta nueva o autenticada).
-4. Member solicita producto desde `/productos`.
-5. Owner recibe email de solicitud y puede auditar requests por backend.
+1. Registro -> login -> acceso base.
+2. Crear organización desde `/organizacion/crear` cuando quieras (si querés operar como owner).
+3. Owner invita miembro desde `/equipo`.
+4. Invitado acepta por `/aceptar-invitacion?token=...` (cuenta nueva o autenticada).
+5. Member solicita producto desde `/productos`.
+6. Owner recibe email de solicitud y puede auditar requests por backend.
 
 ## Regla de email en entregas
 

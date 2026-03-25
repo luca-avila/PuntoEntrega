@@ -49,8 +49,12 @@ Públicas:
 - `/verificar-email` y `/verify-email`
 - `/aceptar-invitacion?token=...`
 
-Protegidas (owner y member):
+Protegidas base (usuario autenticado):
 - `/`
+- `/organizacion/crear`
+- `/onboarding/organizacion` (alias legacy que redirige a `/organizacion/crear`)
+
+Protegidas con organización:
 - `/entregas`
 - `/entregas/:deliveryId`
 - `/ubicaciones`
@@ -66,6 +70,10 @@ Owner-only:
 
 ## Comportamiento por rol
 
+- usuario autenticado sin organización:
+  - puede usar la cuenta base y entrar a `Inicio`.
+  - ve acceso directo a `Crear organización` desde navegación.
+  - al intentar entrar a módulos operativos (`/entregas`, `/ubicaciones`, `/productos`) se redirige a `/organizacion/crear`.
 - `owner`: ve navegación completa (`Nueva entrega`, `Equipo`) y acciones de alta/edición.
 - `member`: ve solo navegación y acciones permitidas de lectura/operación compartida.
 - si un `member` intenta entrar manualmente por URL a una ruta owner-only, el guard redirige a `/`.
@@ -73,8 +81,9 @@ Owner-only:
 ## Onboarding y contexto organizacional
 
 - usuario autenticado sin `organization_id`:
-  - se redirige a `/onboarding/organizacion`.
-  - no accede a rutas de operación hasta completar onboarding.
+  - no queda bloqueado al iniciar sesión.
+  - puede crear organización cuando quiera desde `/organizacion/crear`.
+  - al crearla pasa a operar con permisos de owner.
 - usuario con organización:
   - no vuelve a onboarding y entra al flujo operativo normal.
 
@@ -92,7 +101,10 @@ Owner-only:
 2. Member:
    - no ve CTAs owner-only en Home, Ubicaciones, Historial y detalle.
    - acceso directo por URL a rutas owner-only redirige a `/`.
-3. Invitación:
+3. Usuario autenticado sin organización:
+   - puede iniciar sesión y ver inicio sin bloqueo.
+   - puede crear organización desde `/organizacion/crear`.
+4. Invitación:
    - abrir `/aceptar-invitacion?token=...` sin sesión.
    - iniciar sesión desde el CTA.
    - volver automáticamente al flujo de aceptación.

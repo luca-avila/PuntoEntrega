@@ -11,21 +11,29 @@ const sharedNavigationItems = [
   { to: "/", label: "Inicio" },
 ];
 
+const noOrganizationNavigationItems = [
+  { to: "/", label: "Inicio" },
+  { to: "/organizacion/crear", label: "Crear organización" },
+];
+
 export function ProtectedLayout() {
   const { user, isOwner, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const location = useLocation();
+  const hasOrganization = Boolean(user?.organization_id);
   const isHistoryActive =
     location.pathname === "/entregas" ||
     (location.pathname.startsWith("/entregas/") &&
       !location.pathname.startsWith("/entregas/nueva"));
-  const navigationItems = isOwner
-    ? [
-        { to: "/entregas/nueva", label: "Nueva entrega" },
-        ...sharedNavigationItems,
-        { to: "/equipo", label: "Equipo" },
-      ]
-    : sharedNavigationItems;
+  const navigationItems = !hasOrganization
+    ? noOrganizationNavigationItems
+    : isOwner
+      ? [
+          { to: "/entregas/nueva", label: "Nueva entrega" },
+          ...sharedNavigationItems,
+          { to: "/equipo", label: "Equipo" },
+        ]
+      : sharedNavigationItems;
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
