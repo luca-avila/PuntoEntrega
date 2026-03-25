@@ -5,7 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from httpx import AsyncClient
 
-from tests.test_locations import login_user, mark_user_verified, register_user
+from tests.test_locations import setup_authenticated_user_with_organization
 from tests.test_products import build_product_payload
 
 
@@ -90,9 +90,7 @@ class TestDeliveriesAuth:
 class TestDeliveriesCrud:
     async def test_create_list_and_get_delivery(self, client: AsyncClient):
         user_email = "deliveries-owner@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         location = await create_location(client)
         product = await create_product(client)
@@ -144,9 +142,7 @@ class TestDeliveriesCrud:
         )
 
         user_email = "deliveries-recipient-override@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         location = await create_location(client)
         product = await create_product(client)
@@ -182,9 +178,7 @@ class TestDeliveriesCrud:
         )
 
         user_email = "deliveries-email-failed@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         location = await create_location(client)
         product = await create_product(client)
@@ -208,9 +202,7 @@ class TestDeliveriesCrud:
 
     async def test_create_delivery_requires_items(self, client: AsyncClient):
         user_email = "deliveries-missing-items@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         location = await create_location(client)
 
@@ -228,9 +220,7 @@ class TestDeliveriesCrud:
 
     async def test_create_delivery_requires_summary_recipient_email(self, client: AsyncClient):
         user_email = "deliveries-missing-recipient@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         location = await create_location(client)
         product = await create_product(client)
@@ -248,9 +238,7 @@ class TestDeliveriesCrud:
 
     async def test_create_delivery_rejects_non_positive_quantity(self, client: AsyncClient):
         user_email = "deliveries-invalid-quantity@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         location = await create_location(client)
         product = await create_product(client)
@@ -269,9 +257,7 @@ class TestDeliveriesCrud:
 
     async def test_create_delivery_rejects_duplicate_products(self, client: AsyncClient):
         user_email = "deliveries-duplicate-products@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         location = await create_location(client)
         product = await create_product(client)
@@ -294,9 +280,7 @@ class TestDeliveriesCrud:
 
     async def test_list_deliveries_supports_location_and_date_filters(self, client: AsyncClient):
         user_email = "deliveries-filter@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         first_location = await create_location(client, name="Sucursal Norte")
         second_location = await create_location(client, name="Sucursal Sur")
@@ -348,9 +332,7 @@ class TestDeliveriesCrud:
 
     async def test_list_deliveries_rejects_invalid_date_range(self, client: AsyncClient):
         user_email = "deliveries-invalid-date-range@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         delivered_from = datetime(2026, 5, 10, tzinfo=UTC).isoformat()
         delivered_to = datetime(2026, 5, 1, tzinfo=UTC).isoformat()
@@ -372,9 +354,7 @@ class TestDeliveriesIsolation:
         first_email = "deliveries-org-a@example.com"
         second_email = "deliveries-org-b@example.com"
 
-        await register_user(client, first_email)
-        await mark_user_verified(first_email)
-        await login_user(client, first_email)
+        await setup_authenticated_user_with_organization(client, first_email)
 
         location_a = await create_location(client)
         product_a = await create_product(client)
@@ -394,9 +374,7 @@ class TestDeliveriesIsolation:
         logout_response = await client.post("/auth/jwt/logout")
         assert logout_response.status_code in (200, 204)
 
-        await register_user(client, second_email)
-        await mark_user_verified(second_email)
-        await login_user(client, second_email)
+        await setup_authenticated_user_with_organization(client, second_email)
 
         get_response = await client.get(f"/deliveries/{delivery_id}")
         assert get_response.status_code == 404
@@ -435,18 +413,14 @@ class TestDeliveriesIsolation:
         first_email = "deliveries-multi-item-org-a@example.com"
         second_email = "deliveries-multi-item-org-b@example.com"
 
-        await register_user(client, first_email)
-        await mark_user_verified(first_email)
-        await login_user(client, first_email)
+        await setup_authenticated_user_with_organization(client, first_email)
 
         foreign_product = await create_product(client, name="Producto organización A")
 
         logout_response = await client.post("/auth/jwt/logout")
         assert logout_response.status_code in (200, 204)
 
-        await register_user(client, second_email)
-        await mark_user_verified(second_email)
-        await login_user(client, second_email)
+        await setup_authenticated_user_with_organization(client, second_email)
 
         location = await create_location(client, name="Sucursal organización B")
         own_product = await create_product(client, name="Producto organización B")

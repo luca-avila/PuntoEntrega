@@ -7,7 +7,6 @@ class UserRead(schemas.BaseUser[uuid.UUID]):
     """User read schema - returned from API."""
 
     organization_id: uuid.UUID | None = None
-    role: str | None = None
 
 
 class UserCreate(schemas.BaseUserCreate):

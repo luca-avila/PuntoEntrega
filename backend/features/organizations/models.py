@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, String, Uuid, func, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from features.auth.models import Base
@@ -24,6 +24,17 @@ class Organization(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(120), nullable=False, unique=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey(
+            "user.id",
+            name="fk_organizations_owner_user_id_user",
+            ondelete="RESTRICT",
+            use_alter=True,
+        ),
+        nullable=False,
+        index=True,
+    )
     subscription_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
     plan_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(
@@ -44,7 +55,14 @@ class Organization(Base):
         onupdate=func.now(),
     )
 
-    users: Mapped[list["User"]] = relationship(back_populates="organization")
+    users: Mapped[list["User"]] = relationship(
+        back_populates="organization",
+        foreign_keys="User.organization_id",
+    )
+    owner: Mapped["User"] = relationship(
+        back_populates="owned_organizations",
+        foreign_keys=[owner_user_id],
+    )
     locations: Mapped[list["Location"]] = relationship(back_populates="organization")
     products: Mapped[list["Product"]] = relationship(back_populates="organization")
     deliveries: Mapped[list["Delivery"]] = relationship(back_populates="organization")

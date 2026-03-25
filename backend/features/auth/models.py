@@ -2,7 +2,7 @@ import uuid
 from typing import TYPE_CHECKING
 
 from fastapi_users_db_sqlalchemy import SQLAlchemyBaseUserTableUUID
-from sqlalchemy import ForeignKey, String, Uuid
+from sqlalchemy import ForeignKey, Uuid
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 if TYPE_CHECKING:
@@ -22,6 +22,12 @@ class User(SQLAlchemyBaseUserTableUUID, Base):
         nullable=True,
         index=True,
     )
-    role: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
-    organization: Mapped["Organization | None"] = relationship(back_populates="users")
+    organization: Mapped["Organization | None"] = relationship(
+        back_populates="users",
+        foreign_keys=[organization_id],
+    )
+    owned_organizations: Mapped[list["Organization"]] = relationship(
+        back_populates="owner",
+        foreign_keys="Organization.owner_user_id",
+    )

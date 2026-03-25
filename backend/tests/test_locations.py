@@ -49,6 +49,34 @@ async def login_user(client: AsyncClient, email: str) -> None:
     assert response.status_code in (200, 204)
 
 
+def _organization_name_from_email(email: str) -> str:
+    local_part = email.split("@", maxsplit=1)[0].strip()
+    if local_part:
+        return f"Organización {local_part}"
+    return "Organización Test"
+
+
+async def create_organization_for_current_user(
+    client: AsyncClient,
+    email: str,
+) -> None:
+    response = await client.post(
+        "/organizations",
+        json={"name": _organization_name_from_email(email)},
+    )
+    assert response.status_code == 201
+
+
+async def setup_authenticated_user_with_organization(
+    client: AsyncClient,
+    email: str,
+) -> None:
+    await register_user(client, email)
+    await mark_user_verified(email)
+    await login_user(client, email)
+    await create_organization_for_current_user(client, email)
+
+
 class TestLocationsAuth:
     async def test_locations_endpoints_require_authentication(self, client: AsyncClient):
         payload = build_location_payload()
@@ -68,9 +96,7 @@ class TestLocationsAuth:
 class TestLocationsCrud:
     async def test_create_list_get_and_patch_location(self, client: AsyncClient):
         user_email = "locations-owner@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         payload = build_location_payload()
         create_response = await client.post("/locations", json=payload)
@@ -99,9 +125,7 @@ class TestLocationsCrud:
 
     async def test_patch_location_requires_non_empty_payload(self, client: AsyncClient):
         user_email = "locations-empty-patch@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         create_response = await client.post("/locations", json=build_location_payload())
         location_id = create_response.json()["id"]
@@ -112,9 +136,7 @@ class TestLocationsCrud:
 
     async def test_create_location_rejects_blank_name_or_address(self, client: AsyncClient):
         user_email = "locations-invalid-text@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         blank_name_payload = build_location_payload()
         blank_name_payload["name"] = "   "
@@ -128,9 +150,7 @@ class TestLocationsCrud:
 
     async def test_create_location_rejects_invalid_contact_email(self, client: AsyncClient):
         user_email = "locations-invalid-email@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         payload = build_location_payload()
         payload["contact_email"] = "email-invalido"
@@ -141,9 +161,7 @@ class TestLocationsCrud:
 
     async def test_create_location_rejects_invalid_contact_phone(self, client: AsyncClient):
         user_email = "locations-invalid-phone@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         payload = build_location_payload()
         payload["contact_phone"] = "abc###"
@@ -158,9 +176,7 @@ class TestLocationsIsolation:
         first_email = "locations-org-a@example.com"
         second_email = "locations-org-b@example.com"
 
-        await register_user(client, first_email)
-        await mark_user_verified(first_email)
-        await login_user(client, first_email)
+        await setup_authenticated_user_with_organization(client, first_email)
 
         create_response = await client.post("/locations", json=build_location_payload())
         assert create_response.status_code == 201
@@ -169,9 +185,7 @@ class TestLocationsIsolation:
         logout_response = await client.post("/auth/jwt/logout")
         assert logout_response.status_code in (200, 204)
 
-        await register_user(client, second_email)
-        await mark_user_verified(second_email)
-        await login_user(client, second_email)
+        await setup_authenticated_user_with_organization(client, second_email)
 
         get_response = await client.get(f"/locations/{first_location_id}")
         patch_response = await client.patch(

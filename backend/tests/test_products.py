@@ -2,7 +2,7 @@ import uuid
 
 from httpx import AsyncClient
 
-from tests.test_locations import login_user, mark_user_verified, register_user
+from tests.test_locations import setup_authenticated_user_with_organization
 
 
 def build_product_payload() -> dict[str, object]:
@@ -32,9 +32,7 @@ class TestProductsAuth:
 class TestProductsCrud:
     async def test_create_list_get_and_patch_product(self, client: AsyncClient):
         user_email = "products-owner@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         payload = build_product_payload()
         create_response = await client.post("/products", json=payload)
@@ -64,9 +62,7 @@ class TestProductsCrud:
 
     async def test_patch_product_requires_non_empty_payload(self, client: AsyncClient):
         user_email = "products-empty-patch@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         create_response = await client.post("/products", json=build_product_payload())
         product_id = create_response.json()["id"]
@@ -77,9 +73,7 @@ class TestProductsCrud:
 
     async def test_active_only_query_excludes_inactive_products(self, client: AsyncClient):
         user_email = "products-active-filter@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         active_product_response = await client.post(
             "/products",
@@ -105,9 +99,7 @@ class TestProductsCrud:
 
     async def test_create_product_rejects_blank_name(self, client: AsyncClient):
         user_email = "products-invalid-name@example.com"
-        await register_user(client, user_email)
-        await mark_user_verified(user_email)
-        await login_user(client, user_email)
+        await setup_authenticated_user_with_organization(client, user_email)
 
         payload = build_product_payload()
         payload["name"] = "   "
@@ -121,9 +113,7 @@ class TestProductsIsolation:
         first_email = "products-org-a@example.com"
         second_email = "products-org-b@example.com"
 
-        await register_user(client, first_email)
-        await mark_user_verified(first_email)
-        await login_user(client, first_email)
+        await setup_authenticated_user_with_organization(client, first_email)
 
         create_response = await client.post("/products", json=build_product_payload())
         assert create_response.status_code == 201
@@ -132,9 +122,7 @@ class TestProductsIsolation:
         logout_response = await client.post("/auth/jwt/logout")
         assert logout_response.status_code in (200, 204)
 
-        await register_user(client, second_email)
-        await mark_user_verified(second_email)
-        await login_user(client, second_email)
+        await setup_authenticated_user_with_organization(client, second_email)
 
         get_response = await client.get(f"/products/{first_product_id}")
         patch_response = await client.patch(

@@ -1,4 +1,3 @@
-import uuid
 from typing import cast
 
 import pytest
@@ -10,7 +9,6 @@ import features.auth.service as auth_service
 from core.db import async_session_maker
 from core.errors import EmailSendError
 from features.auth.models import User
-from features.organizations.models import Organization
 
 USER_EMAIL = "test@example.com"
 USER_PASSWORD = "StrongPass123!"
@@ -53,33 +51,31 @@ class TestRegistration:
         assert data["email"] == USER_EMAIL
         assert "id" in data
         assert data["is_active"] is True
-        assert data["organization_id"] is not None
-        assert data["role"] == "owner"
+        assert data["organization_id"] is None
+        assert "role" not in data
 
-        organization_id = uuid.UUID(data["organization_id"])
         async with async_session_maker() as session:
-            organization = await session.get(Organization, organization_id)
+            result = await session.execute(select(User.organization_id))
+            organization_ids = [row[0] for row in result]
 
-        assert organization is not None
-        assert organization.slug
+        assert organization_ids == [None]
 
     async def test_register_duplicate_email(self, client: AsyncClient):
         await register_user(client)
         response = await register_user(client)
         assert response.status_code == 400
 
-    async def test_register_same_local_part_creates_unique_org_slug(self, client: AsyncClient):
+    async def test_register_does_not_create_organization_automatically(self, client: AsyncClient):
         first_response = await register_user(client, email="same@example.com")
         second_response = await register_user(client, email="same@another.com")
         assert first_response.status_code == 201
         assert second_response.status_code == 201
 
         async with async_session_maker() as session:
-            result = await session.execute(select(Organization.slug))
-            slugs = [row[0] for row in result]
+            result = await session.execute(select(User.organization_id))
+            organization_ids = [row[0] for row in result]
 
-        assert len(slugs) == 2
-        assert len(set(slugs)) == 2
+        assert organization_ids == [None, None]
 
     async def test_register_invalid_email(self, client: AsyncClient):
         response = await register_user(client, email="not-an-email")
@@ -200,8 +196,8 @@ class TestCurrentUser:
         response = await client.get("/users/me")
         assert response.status_code == 200
         assert response.json()["email"] == USER_EMAIL
-        assert response.json()["organization_id"] is not None
-        assert response.json()["role"] == "owner"
+        assert response.json()["organization_id"] is None
+        assert "role" not in response.json()
 
     async def test_get_me_unauthenticated(self, client: AsyncClient):
         response = await client.get("/users/me")
