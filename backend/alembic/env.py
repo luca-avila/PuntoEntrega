@@ -20,6 +20,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+ALEMBIC_VERSION_MAX_LENGTH = 255
 
 
 def get_database_url() -> str:
@@ -65,6 +66,11 @@ def run_migrations_offline() -> None:
 
 
 def do_run_migrations(connection: Connection) -> None:
+    ensure_alembic_version_column_capacity(connection)
+    # ensure_alembic_version_column_capacity may open an implicit transaction.
+    # Commit it so Alembic can manage its own migration transaction boundary.
+    if connection.in_transaction():
+        connection.commit()
     context.configure(
         connection=connection,
         target_metadata=target_metadata,
@@ -74,6 +80,40 @@ def do_run_migrations(connection: Connection) -> None:
 
     with context.begin_transaction():
         context.run_migrations()
+
+
+def ensure_alembic_version_column_capacity(connection: Connection) -> None:
+    """Ensure alembic_version.version_num can store long revision ids.
+
+    Alembic creates version_num with VARCHAR(32) by default, but this project
+    uses descriptive revision identifiers longer than 32 chars.
+    """
+    if connection.dialect.name != "postgresql":
+        return
+
+    connection.exec_driver_sql(
+        f"""
+        CREATE TABLE IF NOT EXISTS alembic_version (
+            version_num VARCHAR({ALEMBIC_VERSION_MAX_LENGTH}) NOT NULL PRIMARY KEY
+        )
+        """
+    )
+    current_length = connection.exec_driver_sql(
+        """
+        SELECT character_maximum_length
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'alembic_version'
+          AND column_name = 'version_num'
+        """
+    ).scalar_one_or_none()
+    if current_length is not None and current_length < ALEMBIC_VERSION_MAX_LENGTH:
+        connection.exec_driver_sql(
+            f"""
+            ALTER TABLE alembic_version
+            ALTER COLUMN version_num TYPE VARCHAR({ALEMBIC_VERSION_MAX_LENGTH})
+            """
+        )
 
 
 async def run_async_migrations() -> None:
