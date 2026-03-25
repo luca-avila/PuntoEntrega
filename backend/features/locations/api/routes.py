@@ -11,31 +11,35 @@ from features.locations.service import (
     list_locations_for_organization,
     update_location_for_organization,
 )
-from features.organizations.service import get_current_organization_id
+from features.organizations.service import (
+    OrganizationUserContext,
+    require_organization_owner,
+    require_organization_user,
+)
 
 router = APIRouter()
 
 
 @router.get("", response_model=list[LocationRead])
 async def list_locations(
-    organization_id: uuid.UUID = Depends(get_current_organization_id),
+    context: OrganizationUserContext = Depends(require_organization_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     return await list_locations_for_organization(
         session=session,
-        organization_id=organization_id,
+        organization_id=context.organization.id,
     )
 
 
 @router.post("", response_model=LocationRead, status_code=status.HTTP_201_CREATED)
 async def create_location(
     payload: LocationCreate,
-    organization_id: uuid.UUID = Depends(get_current_organization_id),
+    context: OrganizationUserContext = Depends(require_organization_owner),
     session: AsyncSession = Depends(get_async_session),
 ):
     return await create_location_for_organization(
         session=session,
-        organization_id=organization_id,
+        organization_id=context.organization.id,
         payload=payload,
     )
 
@@ -43,12 +47,12 @@ async def create_location(
 @router.get("/{location_id}", response_model=LocationRead)
 async def get_location(
     location_id: uuid.UUID,
-    organization_id: uuid.UUID = Depends(get_current_organization_id),
+    context: OrganizationUserContext = Depends(require_organization_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     return await get_location_for_organization(
         session=session,
-        organization_id=organization_id,
+        organization_id=context.organization.id,
         location_id=location_id,
     )
 
@@ -57,13 +61,12 @@ async def get_location(
 async def patch_location(
     location_id: uuid.UUID,
     payload: LocationUpdate,
-    organization_id: uuid.UUID = Depends(get_current_organization_id),
+    context: OrganizationUserContext = Depends(require_organization_owner),
     session: AsyncSession = Depends(get_async_session),
 ):
     return await update_location_for_organization(
         session=session,
-        organization_id=organization_id,
+        organization_id=context.organization.id,
         location_id=location_id,
         payload=payload,
     )
-

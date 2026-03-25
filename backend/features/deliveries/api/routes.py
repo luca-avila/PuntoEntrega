@@ -13,7 +13,11 @@ from features.deliveries.service import (
     list_deliveries_for_organization,
     send_delivery_summary_email_in_background,
 )
-from features.organizations.service import get_current_organization_id
+from features.organizations.service import (
+    OrganizationUserContext,
+    require_organization_owner,
+    require_organization_user,
+)
 
 router = APIRouter()
 
@@ -23,7 +27,7 @@ async def list_deliveries(
     location_id: uuid.UUID | None = None,
     delivered_from: datetime | None = None,
     delivered_to: datetime | None = None,
-    organization_id: uuid.UUID = Depends(get_current_organization_id),
+    context: OrganizationUserContext = Depends(require_organization_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     try:
@@ -42,7 +46,7 @@ async def list_deliveries(
 
     return await list_deliveries_for_organization(
         session=session,
-        organization_id=organization_id,
+        organization_id=context.organization.id,
         filters=filters,
     )
 
@@ -51,12 +55,12 @@ async def list_deliveries(
 async def create_delivery(
     payload: DeliveryCreate,
     background_tasks: BackgroundTasks,
-    organization_id: uuid.UUID = Depends(get_current_organization_id),
+    context: OrganizationUserContext = Depends(require_organization_owner),
     session: AsyncSession = Depends(get_async_session),
 ):
     delivery = await create_delivery_for_organization(
         session=session,
-        organization_id=organization_id,
+        organization_id=context.organization.id,
         payload=payload,
     )
     background_tasks.add_task(
@@ -70,11 +74,11 @@ async def create_delivery(
 @router.get("/{delivery_id}", response_model=DeliveryRead)
 async def get_delivery(
     delivery_id: uuid.UUID,
-    organization_id: uuid.UUID = Depends(get_current_organization_id),
+    context: OrganizationUserContext = Depends(require_organization_user),
     session: AsyncSession = Depends(get_async_session),
 ):
     return await get_delivery_for_organization(
         session=session,
-        organization_id=organization_id,
+        organization_id=context.organization.id,
         delivery_id=delivery_id,
     )

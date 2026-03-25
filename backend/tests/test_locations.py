@@ -59,22 +59,51 @@ def _organization_name_from_email(email: str) -> str:
 async def create_organization_for_current_user(
     client: AsyncClient,
     email: str,
-) -> None:
+) -> dict[str, object]:
     response = await client.post(
         "/organizations",
         json={"name": _organization_name_from_email(email)},
     )
     assert response.status_code == 201
+    return response.json()
 
 
-async def setup_authenticated_user_with_organization(
+async def setup_authenticated_user_without_organization(
     client: AsyncClient,
     email: str,
 ) -> None:
     await register_user(client, email)
     await mark_user_verified(email)
     await login_user(client, email)
-    await create_organization_for_current_user(client, email)
+
+
+async def setup_authenticated_user_with_organization(
+    client: AsyncClient,
+    email: str,
+) -> dict[str, object]:
+    await setup_authenticated_user_without_organization(client, email)
+    return await create_organization_for_current_user(client, email)
+
+
+async def assign_user_to_organization(
+    email: str,
+    organization_id: uuid.UUID,
+) -> None:
+    async with async_session_maker() as session:
+        email_filter = cast(ColumnElement[bool], User.email == email)
+        result = await session.execute(select(User).where(email_filter))
+        user = result.scalar_one()
+        user.organization_id = organization_id
+        await session.commit()
+
+
+async def setup_member_user_in_organization(
+    client: AsyncClient,
+    email: str,
+    organization_id: uuid.UUID,
+) -> None:
+    await setup_authenticated_user_without_organization(client, email)
+    await assign_user_to_organization(email, organization_id)
 
 
 class TestLocationsAuth:

@@ -1,10 +1,11 @@
-import uuid
 import re
+import uuid
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import asc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db import get_async_session
@@ -16,6 +17,12 @@ from features.organizations.models import Organization
 from features.products.models import Product
 
 ORGANIZATION_SLUG_MAX_LENGTH = 120
+
+
+@dataclass(frozen=True)
+class OrganizationUserContext:
+    user: User
+    organization: Organization
 
 
 def _slugify(value: str) -> str:
@@ -47,24 +54,25 @@ async def _build_unique_organization_slug(session: AsyncSession, organization_na
     return candidate
 
 
-async def get_current_organization_id(
+async def get_current_user_with_optional_organization(
     user: User = Depends(current_active_user),
-) -> uuid.UUID:
+) -> User:
+    return user
+
+
+async def get_current_user_with_organization(
+    user: User = Depends(get_current_user_with_optional_organization),
+    session: AsyncSession = Depends(get_async_session),
+) -> OrganizationUserContext:
     if user.organization_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="El usuario no está asignado a una organización.",
         )
-    return user.organization_id
 
-
-async def get_current_organization(
-    organization_id: uuid.UUID = Depends(get_current_organization_id),
-    session: AsyncSession = Depends(get_async_session),
-) -> Organization:
     result = await session.execute(
         select(Organization).where(
-            Organization.id == organization_id,
+            Organization.id == user.organization_id,
             Organization.is_active.is_(True),
         )
     )
@@ -74,7 +82,47 @@ async def get_current_organization(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="La organización está inactiva o no existe.",
         )
-    return organization
+    return OrganizationUserContext(user=user, organization=organization)
+
+
+async def require_organization_owner(
+    context: OrganizationUserContext = Depends(get_current_user_with_organization),
+) -> OrganizationUserContext:
+    if context.organization.owner_user_id != context.user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el owner de la organización puede realizar esta acción.",
+        )
+    return context
+
+
+async def require_organization_member(
+    context: OrganizationUserContext = Depends(get_current_user_with_organization),
+) -> OrganizationUserContext:
+    if context.organization.owner_user_id == context.user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Esta acción solo está permitida para miembros de la organización.",
+        )
+    return context
+
+
+async def require_organization_user(
+    context: OrganizationUserContext = Depends(get_current_user_with_organization),
+) -> OrganizationUserContext:
+    return context
+
+
+async def get_current_organization_id(
+    context: OrganizationUserContext = Depends(require_organization_user),
+) -> uuid.UUID:
+    return context.organization.id
+
+
+async def get_current_organization(
+    context: OrganizationUserContext = Depends(require_organization_user),
+) -> Organization:
+    return context.organization
 
 
 async def create_organization_for_user(
@@ -146,6 +194,18 @@ async def get_current_organization_for_user(
             detail="La organización está inactiva o no existe.",
         )
     return organization
+
+
+async def list_members_for_organization(
+    session: AsyncSession,
+    organization_id: uuid.UUID,
+) -> list[User]:
+    result = await session.execute(
+        select(User)
+        .where(User.organization_id == organization_id)
+        .order_by(asc(User.email))
+    )
+    return list(result.scalars().all())
 
 
 async def _resource_belongs_to_organization(

@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -21,5 +22,15 @@ class OrganizationRead(BaseModel):
     slug: str
     owner_user_id: uuid.UUID
     is_active: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class OrganizationMemberRead(BaseModel):
+    id: uuid.UUID
+    email: str
+    is_active: bool
+    is_verified: bool
+    created_at: datetime | None = None
 
     model_config = ConfigDict(from_attributes=True)
