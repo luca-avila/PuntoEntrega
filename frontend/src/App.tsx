@@ -1,5 +1,9 @@
 import { ProtectedLayout } from "@/components/layout/protected-layout";
 import { AuthProvider } from "@/features/auth/auth-context";
+import {
+  OnboardingOnlyRoute,
+  OrganizationRequiredRoute,
+} from "@/features/auth/organization-route";
 import { ProtectedRoute } from "@/features/auth/protected-route";
 import { DeliveriesHistoryPage } from "@/pages/deliveries-history-page";
 import { DeliveryDetailPage } from "@/pages/delivery-detail-page";
@@ -8,6 +12,7 @@ import { LocationFormPage } from "@/pages/location-form-page";
 import { LocationsListPage } from "@/pages/locations-list-page";
 import { LoginPage } from "@/pages/login-page";
 import { NewDeliveryPage } from "@/pages/new-delivery-page";
+import { OrganizationOnboardingPage } from "@/pages/organization-onboarding-page";
 import { ProductFormPage } from "@/pages/product-form-page";
 import { ProductsListPage } from "@/pages/products-list-page";
 import { RegisterPage } from "@/pages/register-page";
@@ -30,32 +35,41 @@ export default function App() {
           <Route path="/verify-email" element={<VerifyEmailPage />} />
 
           <Route element={<ProtectedRoute />}>
-            <Route element={<ProtectedLayout />}>
-              <Route path="/" element={<HomePage />} />
+            <Route element={<OnboardingOnlyRoute />}>
+              <Route
+                path="/onboarding/organizacion"
+                element={<OrganizationOnboardingPage />}
+              />
+            </Route>
 
-              <Route path="/entregas" element={<DeliveriesHistoryPage />} />
-              <Route path="/entregas/nueva" element={<NewDeliveryPage />} />
-              <Route path="/entregas/:deliveryId" element={<DeliveryDetailPage />} />
+            <Route element={<OrganizationRequiredRoute />}>
+              <Route element={<ProtectedLayout />}>
+                <Route path="/" element={<HomePage />} />
 
-              <Route path="/ubicaciones" element={<LocationsListPage />} />
-              <Route
-                path="/ubicaciones/nueva"
-                element={<LocationFormPage mode="create" />}
-              />
-              <Route
-                path="/ubicaciones/:locationId/editar"
-                element={<LocationFormPage mode="edit" />}
-              />
+                <Route path="/entregas" element={<DeliveriesHistoryPage />} />
+                <Route path="/entregas/nueva" element={<NewDeliveryPage />} />
+                <Route path="/entregas/:deliveryId" element={<DeliveryDetailPage />} />
 
-              <Route path="/productos" element={<ProductsListPage />} />
-              <Route
-                path="/productos/nuevo"
-                element={<ProductFormPage mode="create" />}
-              />
-              <Route
-                path="/productos/:productId/editar"
-                element={<ProductFormPage mode="edit" />}
-              />
+                <Route path="/ubicaciones" element={<LocationsListPage />} />
+                <Route
+                  path="/ubicaciones/nueva"
+                  element={<LocationFormPage mode="create" />}
+                />
+                <Route
+                  path="/ubicaciones/:locationId/editar"
+                  element={<LocationFormPage mode="edit" />}
+                />
+
+                <Route path="/productos" element={<ProductsListPage />} />
+                <Route
+                  path="/productos/nuevo"
+                  element={<ProductFormPage mode="create" />}
+                />
+                <Route
+                  path="/productos/:productId/editar"
+                  element={<ProductFormPage mode="edit" />}
+                />
+              </Route>
             </Route>
           </Route>
 

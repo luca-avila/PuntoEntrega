@@ -99,7 +99,7 @@ export function RegisterPage() {
         <CardHeader>
           <CardTitle className="text-center">Crear cuenta</CardTitle>
           <CardDescription className="text-center">
-            Registrá tu organización para empezar a usar PuntoEntrega.
+            Creá tu cuenta. Vas a configurar tu organización en el siguiente paso.
           </CardDescription>
         </CardHeader>
         <CardContent>
