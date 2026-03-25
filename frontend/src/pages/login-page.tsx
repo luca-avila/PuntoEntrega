@@ -38,6 +38,18 @@ function mapLoginErrorToMessage(error: unknown): string {
   return "No pudimos iniciar sesión. Verificá tus datos e intentá nuevamente.";
 }
 
+function sanitizeNextPath(nextPath: string | null): string | null {
+  if (!nextPath) {
+    return null;
+  }
+
+  if (!nextPath.startsWith("/") || nextPath.startsWith("//")) {
+    return null;
+  }
+
+  return nextPath;
+}
+
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -47,7 +59,7 @@ export function LoginPage() {
   const isRegistered = searchParams.get("registered") === "1";
   const isVerified = searchParams.get("verified") === "1";
   const isPasswordReset = searchParams.get("passwordReset") === "1";
-  const nextPath = searchParams.get("next");
+  const nextPath = sanitizeNextPath(searchParams.get("next"));
   const fromState = (
     location.state as
       | {
@@ -58,7 +70,7 @@ export function LoginPage() {
         }
       | undefined
   )?.from;
-  const redirectTarget = nextPath?.startsWith("/")
+  const redirectTarget = nextPath
     ? nextPath
     : fromState?.pathname
       ? `${fromState.pathname}${fromState.search ?? ""}`

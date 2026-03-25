@@ -1,11 +1,20 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/hooks/use-auth";
 import { Link } from "react-router-dom";
 
-const quickAccessItems = [
+interface QuickAccessItem {
+  to: string;
+  title: string;
+  description: string;
+  ownerOnly?: boolean;
+}
+
+const quickAccessItems: QuickAccessItem[] = [
   {
     to: "/entregas/nueva",
     title: "Nueva entrega",
     description: "Registrá consignaciones y enviá confirmación en un solo flujo.",
+    ownerOnly: true,
   },
   {
     to: "/entregas",
@@ -15,16 +24,25 @@ const quickAccessItems = [
   {
     to: "/ubicaciones",
     title: "Ubicaciones",
-    description: "Administrá puntos de entrega con geocodificación precisa.",
+    description: "Consultá y administrá puntos de entrega de tu organización.",
   },
   {
     to: "/productos",
     title: "Productos",
-    description: "Mantené activo el catálogo para futuras consignaciones.",
+    description: "Gestioná catálogo o solicitá productos según tu perfil.",
+  },
+  {
+    to: "/equipo",
+    title: "Equipo",
+    description: "Invitá miembros y seguí el estado de invitaciones.",
+    ownerOnly: true,
   },
 ];
 
 export function HomePage() {
+  const { isOwner } = useAuth();
+  const visibleItems = quickAccessItems.filter((item) => !item.ownerOnly || isOwner);
+
   return (
     <section className="page-section flex w-full justify-center">
       <Card className="w-full max-w-4xl overflow-hidden border-border/80 shadow-lg shadow-black/20">
@@ -32,13 +50,13 @@ export function HomePage() {
           <CardHeader className="px-5 py-6 text-center sm:px-8 sm:py-7">
             <CardTitle className="text-xl sm:text-2xl">Panel operativo</CardTitle>
             <CardDescription className="mx-auto max-w-xl text-sm">
-              Accedé rápido a entregas, ubicaciones y productos desde un panel más claro y ordenado.
+              Accedé rápido a los flujos habilitados para tu perfil dentro de la organización.
             </CardDescription>
           </CardHeader>
         </div>
 
         <CardContent className="grid gap-3 p-4 text-sm sm:grid-cols-2 sm:gap-4 sm:p-6">
-          {quickAccessItems.map((item) => (
+          {visibleItems.map((item) => (
             <Link
               className="group flex min-h-28 flex-col justify-between rounded-xl border border-border/80 bg-secondary/45 p-4 transition-all hover:-translate-y-0.5 hover:bg-secondary/70"
               key={item.to}

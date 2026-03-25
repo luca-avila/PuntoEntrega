@@ -2,12 +2,14 @@ import { locationsApi } from "@/api";
 import type { LocationRead } from "@/api/contracts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/hooks/use-auth";
 import { getApiErrorMessage } from "@/lib/errors";
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 export function LocationsListPage() {
   const navigate = useNavigate();
+  const { isOwner } = useAuth();
   const [locations, setLocations] = useState<LocationRead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -43,7 +45,7 @@ export function LocationsListPage() {
             Administrá los puntos físicos de entrega de tu organización.
           </p>
         </div>
-        {hasLocations ? (
+        {hasLocations && isOwner ? (
           <Button onClick={handleCreateLocation}>Nueva ubicación</Button>
         ) : null}
       </div>
@@ -73,12 +75,16 @@ export function LocationsListPage() {
           <CardHeader>
             <CardTitle className="text-base">Todavía no hay ubicaciones</CardTitle>
             <CardDescription>
-              Creá la primera ubicación para poder registrar entregas.
+              {isOwner
+                ? "Creá la primera ubicación para poder registrar entregas."
+                : "Tu organización todavía no tiene ubicaciones cargadas."}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button onClick={handleCreateLocation}>Crear ubicación</Button>
-          </CardContent>
+          {isOwner ? (
+            <CardContent>
+              <Button onClick={handleCreateLocation}>Crear ubicación</Button>
+            </CardContent>
+          ) : null}
         </Card>
       ) : null}
 
@@ -97,12 +103,14 @@ export function LocationsListPage() {
                     {location.contact_phone ? ` · ${location.contact_phone}` : ""}
                   </p>
                 </div>
-                <Button
-                  onClick={() => navigate(`/ubicaciones/${location.id}/editar`)}
-                  variant="outline"
-                >
-                  Editar
-                </Button>
+                {isOwner ? (
+                  <Button
+                    onClick={() => navigate(`/ubicaciones/${location.id}/editar`)}
+                    variant="outline"
+                  >
+                    Editar
+                  </Button>
+                ) : null}
               </CardContent>
             </Card>
           ))}

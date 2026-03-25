@@ -6,11 +6,16 @@ MVP SaaS multi-tenant para registrar entregas/consignaciones por organización.
 
 Implementado:
 - Autenticación reutilizando el módulo existente
+- Onboarding de organización (creación manual post-login)
+- Modelo owner/member (sin `role` en usuario)
 - Aislamiento por organización en backend
 - CRUD de ubicaciones con mapa (Leaflet + OpenStreetMap)
 - CRUD de productos con estado activo/inactivo
 - Registro de entregas con múltiples ítems
 - Historial y detalle de entregas con estado de email
+- Gestión de equipo e invitaciones por email (owner)
+- Aceptación pública de invitaciones con token seguro
+- Solicitud de productos por members (notificación por email al owner)
 
 No implementado (fuera de alcance MVP):
 - Integraciones de pasarela de pago
@@ -85,6 +90,24 @@ cd frontend
 npm run lint
 npm run build
 ```
+
+## Reglas de permisos (resumen)
+
+- `owner`:
+  - alta/edición de productos, ubicaciones y entregas.
+  - acceso a `/equipo` para gestionar miembros e invitaciones.
+- `member`:
+  - acceso de lectura a recursos operativos.
+  - puede solicitar productos desde `/productos`.
+  - no tiene acceso a rutas owner-only.
+
+## Flujos funcionales clave
+
+1. Registro -> login -> onboarding (`/onboarding/organizacion`) -> app.
+2. Owner invita miembro desde `/equipo`.
+3. Invitado acepta por `/aceptar-invitacion?token=...` (cuenta nueva o autenticada).
+4. Member solicita producto desde `/productos`.
+5. Owner recibe email de solicitud y puede auditar requests por backend.
 
 ## Regla de email en entregas
 

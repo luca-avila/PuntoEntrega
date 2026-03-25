@@ -2,6 +2,7 @@ import { deliveriesApi, locationsApi, productsApi } from "@/api";
 import type { DeliveryRead, LocationRead, ProductRead } from "@/api/contracts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useAuth } from "@/hooks/use-auth";
 import {
   formatDeliveryDateTime,
   getDeliveryEmailStatusClassName,
@@ -15,6 +16,7 @@ import { useNavigate, useParams } from "react-router-dom";
 export function DeliveryDetailPage() {
   const navigate = useNavigate();
   const { deliveryId } = useParams<{ deliveryId: string }>();
+  const { isOwner } = useAuth();
 
   const [delivery, setDelivery] = useState<DeliveryRead | null>(null);
   const [location, setLocation] = useState<LocationRead | null>(null);
@@ -113,9 +115,11 @@ export function DeliveryDetailPage() {
           <Button onClick={() => navigate("/entregas")} type="button" variant="outline">
             Historial
           </Button>
-          <Button onClick={() => navigate("/entregas/nueva")} type="button" variant="outline">
-            Nueva entrega
-          </Button>
+          {isOwner ? (
+            <Button onClick={() => navigate("/entregas/nueva")} type="button" variant="outline">
+              Nueva entrega
+            </Button>
+          ) : null}
         </div>
       </div>
 

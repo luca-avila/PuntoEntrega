@@ -1,130 +1,81 @@
-# PR F - Frontend Equipo/Invitaciones + Aceptación Pública + Solicitud de Productos
+# PR G - Documentación Final y Hardening
 
 ## 1) Objetivo del PR
 
-Implementar en frontend los flujos funcionales que consumen las features backend ya cerradas en PR C y PR D:
+Cerrar el ciclo del MVP con:
 
-- Gestión de equipo e invitaciones (owner).
-- Aceptación pública de invitación por token.
-- Solicitud de productos desde la pantalla de productos (member).
+- hardening de frontend para alinear navegación/rutas con permisos owner/member.
+- documentación final de flujos implementados y guía de verificación.
 
-Este PR debe dejar la experiencia end-to-end utilizable sin agregar nuevas reglas backend.
+Este PR no agrega features nuevas de negocio; consolida experiencia, seguridad operativa y claridad de uso.
 
 ## 2) Alcance exacto (in scope)
 
-- Nueva ruta `/equipo` para owner:
-  - listado de miembros (`GET /organization-members`)
-  - formulario de invitación (`POST /organization-invitations`)
-  - listado de invitaciones (`GET /organization-invitations`)
-  - cancelar invitación (`POST /organization-invitations/{id}/cancel`)
-- Nueva página pública `/aceptar-invitacion`:
-  - validación token (`GET /organization-invitations/accept-info`)
-  - aceptación con cuenta nueva (`POST /organization-invitations/accept`)
-  - aceptación autenticada (`POST /organization-invitations/accept-authenticated`)
-- Integración de solicitud de productos en `/productos` para member:
-  - formulario simple asunto + mensaje
-  - alta via `POST /product-requests`
-- Contratos y API clients frontend para invitations/product-requests/organization-members.
+- Endurecer rutas frontend owner-only para evitar acceso por URL a pantallas de alta/edición.
+- Ajustar visibilidad de acciones CTA en UI según `isOwner`.
+- Mejorar navegación inicial para member (sin acciones de escritura no permitidas).
+- Actualizar documentación principal (`README` raíz y `frontend/README`) con estado real del producto y flujos owner/member.
+- Mantener `lint` y `build` frontend en verde.
 
 ## 3) Fuera de alcance (out of scope)
 
-- Rework visual profundo del layout general.
-- Nuevos permisos backend o cambios de negocio.
-- Auditoría frontend completa de product requests para owner (queda para PR posterior si se necesita vista dedicada).
-- Cambios de infraestructura/testing E2E automatizado.
+- Nuevos endpoints backend o cambios de esquema.
+- Refactor visual amplio del diseño.
+- Tests E2E automáticos.
+- Nuevos módulos funcionales fuera de los PRs A-F.
 
 ## 4) Cambios técnicos detallados
 
-### 4.1 API y contratos frontend
+### 4.1 Hardening de rutas owner-only
 
-Crear:
+Actualizar `frontend/src/App.tsx` para que queden bajo `OwnerOnlyRoute`:
 
-1. `frontend/src/api/contracts/invitations.ts`
-   - `OrganizationInvitationCreate`
-   - `OrganizationInvitationRead`
-   - `OrganizationInvitationAcceptInfoRead`
-   - `OrganizationInvitationAcceptCreate`
-   - `OrganizationInvitationAcceptAuthenticated`
-   - `OrganizationInvitationAcceptResult`
+- `/equipo`
+- `/entregas/nueva`
+- `/ubicaciones/nueva`
+- `/ubicaciones/:locationId/editar`
+- `/productos/nuevo`
+- `/productos/:productId/editar`
 
-2. `frontend/src/api/invitations-api.ts`
-   - `create`, `list`, `cancel`
-   - `getAcceptInfo`
-   - `acceptNewAccount`
-   - `acceptAuthenticated`
+Mantener rutas compartidas owner/member:
 
-3. `frontend/src/api/contracts/product-requests.ts`
-   - `ProductRequestCreate`
-   - `ProductRequestRead`
+- `/`
+- `/entregas`
+- `/entregas/:deliveryId`
+- `/ubicaciones`
+- `/productos`
 
-4. `frontend/src/api/product-requests-api.ts`
-   - `create`
-   - (opcional helper `list` para uso futuro owner)
+### 4.2 Hardening de UI por rol
 
-5. `frontend/src/api/contracts/organization-members.ts`
-   - `OrganizationMemberRead`
+Actualizar páginas y layout para consistencia con permisos backend:
 
-6. `frontend/src/api/organization-members-api.ts`
-   - `list`
+- `ProtectedLayout`:
+  - member no ve `Nueva entrega`.
+  - owner sí ve `Nueva entrega` y `Equipo`.
+- `HomePage`:
+  - quick actions diferenciadas por rol.
+- `LocationsListPage`:
+  - member no ve botones crear/editar.
+- `DeliveriesHistoryPage`:
+  - member no ve CTA de nueva entrega en estado vacío.
 
-Actualizar exports de `api/index.ts` y `api/contracts/index.ts`.
+### 4.3 Hardening de navegación de login
 
-### 4.2 Pantalla `/equipo` (owner)
+Conservar comportamiento de `next` para flujos que requieren login intermedio (por ejemplo aceptación de invitación), evitando perder contexto de retorno.
 
-Crear `frontend/src/pages/team-page.tsx`:
-
-- Sección 1: miembros actuales (owner + members), usando `organization-members-api`.
-- Sección 2: invitar por email:
-  - React Hook Form (`email`)
-  - submit a `invitationsApi.create`
-  - feedback de éxito/error.
-- Sección 3: invitaciones:
-  - listado con estado (`pending|accepted|expired|cancelled`)
-  - acción “Cancelar” solo para `pending`.
-
-Permisos frontend:
-- mostrar acceso a `/equipo` solo si `isOwner`.
-- si no owner, redirigir a `/`.
-
-### 4.3 Aceptación pública `/aceptar-invitacion`
-
-Crear `frontend/src/pages/accept-invitation-page.tsx`:
-
-- Leer `token` desde query string.
-- Cargar `accept-info`.
-- Estados de pantalla:
-  - token inválido / expirado / cancelado / aceptado.
-  - token válido.
-- Si válido:
-  - Cuenta nueva: formulario contraseña + confirmar, POST `/accept`.
-  - Cuenta existente:
-    - si no autenticado: CTA a login preservando retorno.
-    - si autenticado: botón aceptar autenticada (POST `/accept-authenticated`).
-- Mostrar mensajes backend de conflicto (email no coincide, usuario ya en org, etc.).
-
-### 4.4 Solicitud de productos (member)
-
-Actualizar `frontend/src/pages/products-list-page.tsx`:
-
-- Si `isOwner`:
-  - mantener comportamiento actual (alta/edición).
-- Si `!isOwner`:
-  - ocultar CTA de “Nuevo producto” y acciones de edición.
-  - mostrar bloque “Solicitar producto” con formulario:
-    - `subject` (max 255)
-    - `message` (mínimo 10)
-  - submit a `productRequestsApi.create`.
-  - feedback de envío y errores.
-
-### 4.5 Navegación y accesos
+### 4.4 Documentación final
 
 Actualizar:
 
-- `frontend/src/App.tsx`:
-  - ruta protegida `/equipo` (owner).
-  - ruta pública `/aceptar-invitacion`.
-- `frontend/src/components/layout/protected-layout.tsx`:
-  - agregar nav item “Equipo” solo para owner.
+1. `README.md` (raíz)
+   - estado actual implementado (onboarding, ownership, invitaciones, product requests).
+   - resumen de permisos owner/member.
+   - flujo funcional esperado punta a punta.
+
+2. `frontend/README.md`
+   - rutas clave públicas/protegidas.
+   - comportamiento onboarding y rol en frontend.
+   - checklist de validación manual del cliente web.
 
 ## 5) Verificación y checks del PR
 
@@ -135,46 +86,37 @@ Ejecutar:
 
 Smoke manual:
 
-1. Owner:
-   - entra a `/equipo`
-   - invita email
-   - ve invitación en listado
-   - cancela invitación pending
-2. Invitado:
-   - abre `/aceptar-invitacion?token=...`
-   - valida estado
-   - acepta con cuenta nueva y con cuenta autenticada
-3. Member:
-   - entra a `/productos`
-   - ve formulario de solicitud y puede enviar
-4. Owner:
-   - no ve formulario member en `/productos`
+1. owner:
+   - ve nav completa (`Nueva entrega`, `Equipo`) y puede acceder a rutas owner-only.
+2. member:
+   - no ve acciones owner-only en navegación y pantalla.
+   - acceso manual por URL a rutas owner-only redirige a `/`.
+3. invitación:
+   - login con `next` mantiene retorno al flujo de aceptación.
 
 ## 6) Riesgos y mitigaciones
 
-Riesgo: incoherencia entre permisos backend y UI visible.
-- Mitigación: usar `isOwner` del `AuthContext` para visibilidad de acciones y rutas.
+Riesgo: UX inconsistente entre pantallas (botones visibles pero acción bloqueada).
+- Mitigación: alinear visibilidad UI y guards de rutas por `isOwner`.
 
-Riesgo: UX confusa en aceptación con login intermedio.
-- Mitigación: preservar `token` en query y redirigir de vuelta al flujo público.
+Riesgo: regresiones de navegación al endurecer rutas.
+- Mitigación: smoke manual enfocado en rutas owner/member y build tipado.
 
-Riesgo: errores de API no claros para el usuario final.
-- Mitigación: mapear `detail` del backend y mostrar feedback contextual en cada formulario.
+Riesgo: documentación desactualizada respecto al código.
+- Mitigación: actualizar docs en el mismo PR de hardening.
 
-## 7) Criterios de aceptación del PR F
+## 7) Criterios de aceptación del PR G
 
-- Owner puede gestionar miembros e invitaciones desde `/equipo`.
-- Flujo de `/aceptar-invitacion` funciona para token válido e inválido.
-- Aceptación con cuenta nueva y autenticada disponibles en UI.
-- Member puede solicitar productos desde `/productos`.
-- Owner no ve acciones de member en `/productos`.
+- Rutas owner-only protegidas en frontend.
+- UI no muestra acciones de escritura a members donde no corresponda.
+- Flujo de login con retorno (`next`) funcional.
+- Documentación raíz y frontend alineada al estado real del producto.
 - `lint` y `build` frontend en verde.
 
 ## 8) Secuencia de implementación sugerida (orden interno)
 
-1. API contracts + clients (invitations/product-requests/members).
-2. Página `/equipo` con invitaciones.
-3. Página pública `/aceptar-invitacion`.
-4. Integración solicitud member en `/productos`.
-5. Rutas/nav y controles por owner/member.
-6. Lint/build + smoke final.
+1. Hardening de routes en `App.tsx`.
+2. Ajustes de visibilidad por rol en layout/pages.
+3. Revisión de retorno de login y navegación.
+4. Actualización de documentación final.
+5. Lint/build + smoke final.

@@ -51,30 +51,28 @@ export default function App() {
                 <Route path="/" element={<HomePage />} />
 
                 <Route path="/entregas" element={<DeliveriesHistoryPage />} />
-                <Route path="/entregas/nueva" element={<NewDeliveryPage />} />
                 <Route path="/entregas/:deliveryId" element={<DeliveryDetailPage />} />
 
                 <Route path="/ubicaciones" element={<LocationsListPage />} />
-                <Route
-                  path="/ubicaciones/nueva"
-                  element={<LocationFormPage mode="create" />}
-                />
-                <Route
-                  path="/ubicaciones/:locationId/editar"
-                  element={<LocationFormPage mode="edit" />}
-                />
-
                 <Route path="/productos" element={<ProductsListPage />} />
-                <Route
-                  path="/productos/nuevo"
-                  element={<ProductFormPage mode="create" />}
-                />
-                <Route
-                  path="/productos/:productId/editar"
-                  element={<ProductFormPage mode="edit" />}
-                />
-
                 <Route element={<OwnerOnlyRoute />}>
+                  <Route path="/entregas/nueva" element={<NewDeliveryPage />} />
+                  <Route
+                    path="/ubicaciones/nueva"
+                    element={<LocationFormPage mode="create" />}
+                  />
+                  <Route
+                    path="/ubicaciones/:locationId/editar"
+                    element={<LocationFormPage mode="edit" />}
+                  />
+                  <Route
+                    path="/productos/nuevo"
+                    element={<ProductFormPage mode="create" />}
+                  />
+                  <Route
+                    path="/productos/:productId/editar"
+                    element={<ProductFormPage mode="edit" />}
+                  />
                   <Route path="/equipo" element={<TeamPage />} />
                 </Route>
               </Route>

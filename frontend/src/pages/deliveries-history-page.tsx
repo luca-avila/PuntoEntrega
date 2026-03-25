@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { useAuth } from "@/hooks/use-auth";
 import {
   formatDeliveryDateTime,
   getDeliveryEmailStatusClassName,
@@ -49,6 +50,7 @@ function getItemsSummary(
 
 export function DeliveriesHistoryPage() {
   const navigate = useNavigate();
+  const { isOwner } = useAuth();
 
   const [deliveries, setDeliveries] = useState<DeliveryRead[]>([]);
   const [locations, setLocations] = useState<LocationRead[]>([]);
@@ -255,14 +257,18 @@ export function DeliveriesHistoryPage() {
           <CardHeader>
             <CardTitle className="text-base">No hay entregas registradas</CardTitle>
             <CardDescription>
-              Registrá una entrega para verla en este historial.
+              {isOwner
+                ? "Registrá una entrega para verla en este historial."
+                : "Todavía no hay entregas registradas en la organización."}
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button onClick={() => navigate("/entregas/nueva")} type="button">
-              Nueva entrega
-            </Button>
-          </CardContent>
+          {isOwner ? (
+            <CardContent>
+              <Button onClick={() => navigate("/entregas/nueva")} type="button">
+                Nueva entrega
+              </Button>
+            </CardContent>
+          ) : null}
         </Card>
       ) : null}
 
