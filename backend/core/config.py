@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     PASSWORD_REQUIRE_LOWERCASE: bool = True
     PASSWORD_REQUIRE_DIGIT: bool = True
     PASSWORD_REQUIRE_SPECIAL: bool = True
+    INVITATION_EXPIRATION_HOURS: int = 72
 
 
 settings = Settings()

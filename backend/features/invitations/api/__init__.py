@@ -1,0 +1,1 @@
+"""Invitations API routes."""

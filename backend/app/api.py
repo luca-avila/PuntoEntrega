@@ -8,6 +8,7 @@ from core.logging import configure_logging, get_logger
 import features.models_registry  # noqa: F401
 from features.auth.wiring import include_auth_routers
 from features.deliveries.wiring import deliveries_router
+from features.invitations.wiring import invitations_router
 from features.locations.wiring import locations_router
 from features.organizations.wiring import organizations_router
 from features.products.wiring import products_router
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
 
     include_auth_routers(app)
     app.include_router(organizations_router, tags=["organizations"])
+    app.include_router(invitations_router, tags=["invitations"])
     app.include_router(locations_router, prefix="/locations", tags=["locations"])
     app.include_router(products_router, prefix="/products", tags=["products"])
     app.include_router(deliveries_router, prefix="/deliveries", tags=["deliveries"])
