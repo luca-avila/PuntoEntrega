@@ -1,174 +1,142 @@
-# PR C - Backend Invitations
+# PR D - Backend Product Requests
 
 ## 1) Objetivo del PR
 
-Implementar la feature de invitaciones de miembros por email en backend sobre el modelo owner/member ya existente:
+Implementar la feature de solicitudes de productos en backend sobre el modelo owner/member ya vigente:
 
-- El owner invita por email a usuarios para sumarse a su organización.
-- La invitación se acepta con token seguro y expiración.
-- Debe soportar aceptación con cuenta nueva y con cuenta existente autenticada.
+- Un `member` puede crear una solicitud de producto para su organización.
+- El backend persiste la solicitud y notifica por email al owner.
+- El owner puede auditar solicitudes desde un listado.
 
-Este PR debe dejar invitaciones funcionales de punta a punta en backend (persistencia + reglas + API + email), sin incluir todavía product requests ni cambios de frontend.
+Este PR debe dejar product requests funcionales de punta a punta en backend (persistencia + reglas + API + email/background + tests), sin incluir cambios de frontend.
 
 ## 2) Alcance exacto (in scope)
 
-- Nueva tabla `organization_invitations` con migración Alembic.
-- Nueva feature `backend/features/invitations/` (`models`, `schemas`, `service`, `email`, `api/routes`, `wiring`).
-- Endpoints owner para crear/listar/cancelar invitaciones.
-- Endpoints públicos/auth para validar y aceptar invitaciones.
-- Envío de email de invitación reutilizando infraestructura de email existente.
-- Tests backend completos de reglas de negocio y seguridad.
+- Nueva tabla `product_requests` con migración Alembic.
+- Nueva feature `backend/features/product_requests/` (`models`, `schemas`, `service`, `email`, `api/routes`, `wiring`).
+- Endpoint de creación para `member`: `POST /product-requests`.
+- Endpoint de listado para `owner`: `GET /product-requests`.
+- Envío de email al owner en background con estado/reintentos.
+- Tests backend completos de permisos, reglas y estados de email.
 
 ## 3) Fuera de alcance (out of scope)
 
-- Product requests.
-- Cambios de permisos adicionales fuera de invitaciones.
-- Flujo frontend/UI de aceptación.
-- Co-owners o permisos granulares avanzados.
+- Cambios frontend/UI de solicitud.
+- Cambios de invitaciones (ya cubiertos en PR C).
+- Nuevos roles/permisos más allá de owner/member.
+- Automatizaciones externas adicionales (colas, workers dedicados, etc.).
 
 ## 4) Cambios técnicos detallados
 
 ### 4.1 Migración Alembic
 
-Crear una nueva migración, por ejemplo:
+Crear una nueva migración:
 
-- `backend/alembic/versions/0004_create_organization_invitations.py`
+- `backend/alembic/versions/0005_create_product_requests.py`
 
-Tabla `organization_invitations`:
+Tabla `product_requests`:
 
 1. `id` UUID PK.
 2. `organization_id` UUID FK -> `organizations.id` (ondelete=`CASCADE`, index).
-3. `invited_email` string(320), normalizado lower-case (index).
-4. `invited_by_user_id` UUID FK -> `user.id` (ondelete=`RESTRICT`, index).
-5. `token_hash` string (no guardar token plano).
-6. `status` enum/string: `pending|accepted|expired|cancelled` (index).
-7. `expires_at` datetime tz (index recomendado).
-8. `accepted_at` datetime tz nullable.
-9. `created_at`, `updated_at`.
-
-Regla funcional:
-- Para `organization_id + invited_email`, solo una invitación `pending` activa a la vez.
-- Si se vuelve a invitar y existe `pending`, se reutiliza registro, se renueva token y expiración.
+3. `requested_by_user_id` UUID FK -> `user.id` (ondelete=`RESTRICT`, index).
+4. `subject` string(255), obligatorio.
+5. `message` text/string largo, obligatorio.
+6. `email_status` enum/string: `pending|sent|failed` (index).
+7. `email_attempts` int default 0.
+8. `email_last_error` text nullable.
+9. `email_sent_at` datetime tz nullable.
+10. `created_at`, `updated_at`.
 
 Compatibilidad:
 - Mantener soporte SQLite en tests.
 
 ### 4.2 Modelo SQLAlchemy
 
-Crear `backend/features/invitations/models.py` con:
+Crear `backend/features/product_requests/models.py` con:
 
-- Modelo `OrganizationInvitation`.
-- Enum/constante de estado de invitación.
-- Relaciones mínimas a organización y usuario invitador.
+- Enum `ProductRequestEmailStatus`.
+- Modelo `ProductRequest` con campos y relaciones mínimas (`organization`, `requested_by_user`).
 
-Actualizar `backend/features/models_registry.py` para registrar el nuevo módulo.
+Actualizar `backend/features/models_registry.py` para registrar el módulo nuevo.
 
 ### 4.3 Schemas Pydantic
 
-Crear `backend/features/invitations/schemas.py`:
+Crear `backend/features/product_requests/schemas.py`:
 
-1. Request owner create:
-   - `OrganizationInvitationCreate` (`email`).
+1. `ProductRequestCreate`
+   - `subject` obligatorio, max 255.
+   - `message` obligatorio, mínimo razonable (ej. 10 chars), trim.
 
-2. Read owner list:
-   - `OrganizationInvitationRead` (id, invited_email, status, expires_at, accepted_at, created_at, invited_by_user_id).
+2. `ProductRequestRead`
+   - incluir ids clave, `subject`, `message`, `email_status`, `email_attempts`, `email_last_error`, `email_sent_at`, `created_at`.
 
-3. Accept info público:
-   - `OrganizationInvitationAcceptInfoRead` (estado de validez, organización mínima, email invitado, expiración).
+3. `ProductRequestListFilters` (opcional si necesitás filtros simples por status/fecha).
 
-4. Accept cuenta nueva:
-   - `OrganizationInvitationAcceptCreate` (`token`, `password`, `password_confirm` si ya usan confirmación).
+### 4.4 Servicio de product requests
 
-5. Accept autenticado:
-   - `OrganizationInvitationAcceptAuthenticated` (`token`).
+Crear `backend/features/product_requests/service.py` con casos de uso explícitos:
 
-### 4.4 Servicio de invitaciones
+1. `create_product_request(...)`
+   - Requiere usuario autenticado perteneciente a organización.
+   - Solo `member` puede crear; `owner` recibe `403`.
+   - Persiste la request en estado `pending`.
+   - Commit antes de disparar email.
 
-Crear `backend/features/invitations/service.py` con casos de uso explícitos:
+2. `list_product_requests_for_organization(...)`
+   - Solo `owner`.
+   - Orden recomendado: más nuevas primero.
 
-1. `create_or_resend_invitation(...)`
-   - Requiere owner.
-   - Normaliza email a lower-case.
-   - Valida conflictos:
-     - si email pertenece a usuario de otra organización -> `409`.
-     - si pertenece a usuario de la misma organización -> `409`.
-   - Si hay pending existente (org+email): reutiliza, renueva token+expires_at, estado `pending`.
-   - Si no hay pending: crea invitación nueva.
-   - Token seguro (secreto), persistir solo hash.
-   - Commit atómico.
+3. `send_product_request_email_in_background(...)`
+   - Patrón equivalente a deliveries:
+     - reintentos acotados (`EMAIL_SEND_MAX_ATTEMPTS`)
+     - delay entre intentos
+     - termina en `sent` o `failed`
+   - Resolver owner desde `organizations.owner_user_id`.
+   - Enviar solo si owner está activo y verificado.
+   - Si no hay owner enviable: marcar `failed` con error explícito.
+   - Guardar `email_attempts`, `email_last_error`, `email_sent_at`.
 
-2. `list_invitations_for_organization(...)`
-   - Owner.
+Regla crítica:
+- Si el envío falla, la solicitud NO se pierde: debe quedar persistida con estado final consistente.
 
-3. `cancel_invitation(...)`
-   - Owner.
-   - Solo pending de su organización.
-   - Pasa a `cancelled`.
+### 4.5 Email de solicitud
 
-4. `get_accept_info(token)`
-   - Público.
-   - Resuelve por hash.
-   - Detecta inválido/expirado/cancelado/aceptado.
+Crear `backend/features/product_requests/email.py`:
 
-5. `accept_invitation_new_account(token, password, ...)`
-   - Público.
-   - Token válido y pending.
-   - Crea usuario con `organization_id` de la invitación.
-   - Marca usuario `is_verified = true`.
-   - Marca invitación `accepted` + `accepted_at`.
-   - Operación atómica.
-
-6. `accept_invitation_authenticated(token, current_user)`
-   - Usuario autenticado.
-   - Email del usuario logueado debe coincidir con `invited_email`.
-   - Usuario debe tener `organization_id IS NULL`.
-   - Marca usuario dentro de la organización.
-   - Marca invitación `accepted` + `accepted_at`.
-   - Operación atómica.
-
-Config:
-- Expiración configurable (default 72h).
-
-### 4.5 Email de invitación
-
-Crear `backend/features/invitations/email.py`:
-
-- Reusar proveedor/config de email ya usado en auth.
-- Construir link: `${FRONTEND_URL}/aceptar-invitacion?token=...`.
-- Enviar en creación/reenvío.
+- Reusar infraestructura de email existente (Resend + config actual).
+- Subject sugerido: `"Nueva solicitud de producto - {organization_name}"`.
+- Body con: organización, requester email, asunto, mensaje, fecha.
 
 ### 4.6 API Routes + Wiring
 
-Crear `backend/features/invitations/api/routes.py`:
+Crear `backend/features/product_requests/api/routes.py`:
 
-1. `POST /organization-invitations` (owner)
-2. `GET /organization-invitations` (owner)
-3. `POST /organization-invitations/{invitation_id}/cancel` (owner)
-4. `GET /organization-invitations/accept-info?token=...` (público)
-5. `POST /organization-invitations/accept` (público, cuenta nueva)
-6. `POST /organization-invitations/accept-authenticated` (autenticado)
+1. `POST /product-requests` (member)
+2. `GET /product-requests` (owner)
 
-Agregar `backend/features/invitations/wiring.py` y montar router en `backend/app/api.py`.
+Integración:
+- `backend/features/product_requests/wiring.py`
+- Montar router en `backend/app/api.py` (tag `product-requests`).
 
-Mantener handlers finos:
-- Validan payload/dependencias.
-- Delegan negocio al service.
+Handlers finos:
+- validan payload/dependencias
+- delegan reglas al service
+- disparan background task desde router (`BackgroundTasks`)
 
 ## 5) Ajustes de tests backend
 
-Crear `backend/tests/test_invitations.py` con cobertura mínima:
+Crear `backend/tests/test_product_requests.py` con cobertura mínima:
 
-1. Owner puede invitar (`201`).
-2. Member no puede invitar/listar/cancelar (`403`).
-3. No autenticado recibe `401` en endpoints protegidos.
-4. Si ya existe pending para email+org -> reutiliza invitación y reenvía (sin duplicar pending).
-5. No permite invitar email de usuario en otra organización (`409`).
-6. No permite invitar email ya miembro de la misma organización (`409`).
-7. `accept-info` responde válido para token vigente.
-8. `accept-info` responde inválido/expirado/cancelado/aceptado según estado.
-9. Aceptación cuenta nueva crea usuario en org correcta y marca invitación `accepted`.
-10. Aceptación autenticada exige email coincidente y usuario sin organización.
-11. Token no puede reutilizarse después de aceptar.
+1. `member` puede crear request (`201`).
+2. `owner` no puede crear request (`403`).
+3. no autenticado recibe `401` en creación/listado protegidos.
+4. `owner` puede listar requests de su organización.
+5. `member` no puede listar requests (`403`).
+6. creación persiste request con `email_status=pending` antes del envío.
+7. envío exitoso marca `sent`, incrementa intentos y setea `email_sent_at`.
+8. falla de envío termina en `failed` y conserva request.
+9. si owner no enviable (inactivo/no verificado/sin email válido), queda `failed`.
+10. aislamiento multi-tenant en listado y creación.
 
 ## 6) Verificación y checks del PR
 
@@ -177,37 +145,35 @@ Ejecutar:
 1. `cd backend && uv run alembic upgrade head`
 2. `cd backend && uv run pytest -q`
 3. Smoke manual:
-   - owner invita email
-   - listar invitaciones
-   - `accept-info` con token
-   - aceptar invitación (new account)
-   - validar que invitación queda `accepted`
+   - member crea request
+   - owner lista requests
+   - validar transición de email `pending -> sent|failed`
 
 ## 7) Riesgos y mitigaciones
 
-Riesgo: vulnerabilidad por token plano o validación insuficiente.
-- Mitigación: persistir solo hash, comparar de forma segura, validar estado/expiración en un único punto.
+Riesgo: acoplar creación al envío y perder solicitudes cuando falla email.
+- Mitigación: persistir y commitear request antes del envío en background.
 
-Riesgo: inconsistencias al aceptar invitación.
-- Mitigación: aceptar con transacción atómica (usuario + invitación).
+Riesgo: estados inconsistentes por reintentos concurrentes.
+- Mitigación: guardas de idempotencia y actualización de estado en un único flujo.
 
-Riesgo: duplicación de invitaciones pending.
-- Mitigación: regla de unicidad funcional y lógica de reutilización.
+Riesgo: envío a owner inválido (inactivo/no verificado).
+- Mitigación: validar destinatario antes de enviar y registrar motivo de `failed`.
 
-## 8) Criterios de aceptación del PR C
+## 8) Criterios de aceptación del PR D
 
-- Feature `invitations` creada e integrada al app.
-- Owner puede crear/listar/cancelar invitaciones.
-- Aceptación pública y autenticada funcionan según reglas.
-- Invitaciones usan token hasheado y expiración.
-- Reenvío reutiliza pending existente para `organization + email`.
+- Feature `product_requests` creada e integrada al app.
+- `member` crea solicitudes correctamente.
+- `owner` puede listar solicitudes de su organización.
+- Envío de email corre en background con retries y estado final consistente.
+- Si falla envío o no hay owner enviable, la request queda persistida con `failed`.
 - Suite backend en verde.
 
 ## 9) Secuencia de implementación sugerida (orden interno)
 
-1. Migración + modelo `OrganizationInvitation`.
-2. Schemas y servicio (reglas core).
-3. Email y construcción de link.
+1. Migración + modelo `ProductRequest`.
+2. Schemas y servicio de reglas core (crear/listar).
+3. Email + background sender con retries.
 4. API routes + wiring.
-5. Tests completos de invitaciones.
+5. Tests completos de product requests.
 6. Run tests + smoke final.
