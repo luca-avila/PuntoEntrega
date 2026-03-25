@@ -1,213 +1,164 @@
-# PR A - Ownership + Onboarding Base
+# PR B - Owner/Member Authorization Base
 
 ## 1) Objetivo del PR
 
-Implementar la base del nuevo flujo de tenancy:
+Implementar la capa de autorizacion owner/member sobre el modelo nuevo de ownership:
 
-- El registro (`/auth/register`) crea solo el usuario.
-- La organizacion se crea manualmente desde un endpoint dedicado.
-- El owner se define por `organizations.owner_user_id`.
-- `users.role` deja de existir.
+- El owner se define exclusivamente por `organizations.owner_user_id`.
+- No existe `users.role`.
+- Los endpoints operativos existentes deben aplicar permisos por tipo de usuario (owner o member).
 
-Este PR debe dejar el sistema en un estado funcional, sin invitaciones ni peticiones de productos todavia.
+Este PR debe dejar permisos backend claros y consistentes, sin incluir todavia invitaciones ni peticiones de productos.
 
 ## 2) Alcance exacto (in scope)
 
-- Migracion de DB para ownership en `organizations` y eliminacion de `users.role`.
-- Cambio de bootstrap aceptado: no se prioriza retrocompatibilidad de datos de desarrollo viejos.
-- Refactor del flujo de registro para no crear organizacion automaticamente.
-- Endpoint para crear organizacion manualmente (`POST /organizations`).
-- Endpoint para consultar organizacion actual (`GET /organizations/current`).
-- Ajustes minimos de modelos/schemas/wiring para soportar lo anterior.
-- Ajustes de tests backend para el nuevo comportamiento base.
+- Agregar dependencias reutilizables de autorizacion en `features/organizations/service.py`.
+- Exponer endpoint para listar miembros de la organizacion actual (solo owner).
+- Ajustar permisos en endpoints existentes de `products`, `locations` y `deliveries`.
+- Mantener routers finos (sin logica de negocio en handlers).
+- Ajustar tests backend para validar matriz de permisos owner/member.
 
 ## 3) Fuera de alcance (out of scope)
 
-- Feature de invitaciones.
+- Feature de invitaciones por email.
 - Feature de peticiones de productos.
-- Cambios de permisos owner/member sobre products/locations/deliveries.
-- UI completa de onboarding (queda para PR E segun roadmap).
+- Cambios de frontend.
+- Co-owners o permisos granulares avanzados.
 
 ## 4) Cambios tecnicos detallados
 
-### 4.1 Migracion Alembic
+### 4.1 Dependencias de autorizacion reutilizables
 
-Crear `backend/alembic/versions/0003_organizations_owner_and_drop_user_role.py` con:
+En `backend/features/organizations/service.py`, agregar:
 
-1. Agregar columna `organizations.owner_user_id` (UUID, `nullable=False`).
-2. Crear FK a `user.id` (ondelete recomendado: `RESTRICT`).
-3. Eliminar columna `user.role`.
+1. `get_current_user_with_optional_organization`
+   - retorna usuario autenticado activo
+   - no exige `organization_id`
 
-Contexto explicitado:
-- Este PR asume proyecto sin usuarios reales en produccion.
-- Si tu base local tiene datos viejos incompatibles, se resetea localmente (no se hace backfill legacy).
+2. `get_current_user_with_organization`
+   - exige `organization_id` no nulo
+   - valida que la organizacion exista y este activa
+   - retorna usuario + organizacion actual
 
-Notas de compatibilidad:
+3. `require_organization_owner`
+   - depende de `get_current_user_with_organization`
+   - valida `organization.owner_user_id == current_user.id`
+   - si no cumple: `403`
 
-- Asegurar soporte SQLite en tests usando `batch_alter_table` donde aplique.
-- Mantener migracion clara y simple, sin logica de migracion de datos historicos.
+4. `require_organization_member`
+   - depende de `get_current_user_with_organization`
+   - valida usuario con organizacion y `organization.owner_user_id != current_user.id`
+   - si no cumple: `403`
 
-### 4.2 Modelos SQLAlchemy
+5. `require_organization_user`
+   - owner o member (usuario con organizacion valida)
+   - utilidad para endpoints de lectura
 
-#### `backend/features/organizations/models.py`
+Notas:
+- Reusar mensajes de error claros y consistentes.
+- Evitar duplicar queries de organizacion innecesariamente.
 
-- Agregar `owner_user_id`.
-- Agregar relacion `owner`.
-- Mantener relacion de usuarios miembros (actualmente `users`) pero desambiguar `foreign_keys` porque ahora habra 2 FKs entre `user` y `organizations`.
+### 4.2 Endpoint de miembros de organizacion
 
-#### `backend/features/auth/models.py`
+Crear en `backend/features/organizations/api/routes.py`:
 
-- Eliminar campo `role`.
-- Ajustar relacion `organization` con `foreign_keys=[User.organization_id]` para evitar ambiguedad.
-- (Opcional, recomendado) agregar relacion inversa `owned_organizations` para claridad.
+- `GET /organization-members`
+  - requiere owner
+  - lista usuarios de su organizacion actual
+  - campos minimos por item: `id`, `email`, `is_active`, `is_verified`, `created_at`
+
+Agregar/ajustar schemas en `backend/features/organizations/schemas.py` para la respuesta.
+
+### 4.3 Ajustes de permisos en endpoints existentes
+
+Aplicar dependencia correcta por endpoint:
+
+#### Products
+- `GET /products` y `GET /products/{id}`: `require_organization_user`
+- `POST /products` y `PATCH /products/{id}`: `require_organization_owner`
+
+#### Locations
+- `GET /locations` y `GET /locations/{id}`: `require_organization_user`
+- `POST /locations` y `PATCH /locations/{id}`: `require_organization_owner`
+
+#### Deliveries
+- `GET /deliveries` y `GET /deliveries/{id}`: `require_organization_user`
+- `POST /deliveries`: `require_organization_owner`
 
 Importante:
+- Mantener aislamiento multi-tenant actual.
+- No mover reglas de dominio a routers; solo control de acceso en capa dependencia/entrada.
 
-- Resolver explicitamente joins ambiguos por las dos referencias cruzadas:
-  - `User.organization_id -> Organization.id`
-  - `Organization.owner_user_id -> User.id`
+### 4.4 Migraciones
 
-### 4.3 Auth service (registro)
-
-#### `backend/features/auth/service.py`
-
-- Remover logica que hoy crea organizacion en `UserManager.create`.
-- El alta de usuario debe:
-  - validar password
-  - crear usuario con `organization_id = None`
-  - commit
-  - mantener hooks de verificacion email como estan
-
-- Extraer o mover helper de slug/nombre de organizacion fuera de auth (si se reutiliza en organizations service).
-
-### 4.4 Schemas de auth
-
-#### `backend/features/auth/schemas.py`
-
-- Quitar `role` de `UserRead`.
-- Mantener `organization_id` nullable.
-
-Efecto esperado:
-
-- `GET /users/me` y respuesta de registro ya no incluyen `role`.
-- En registro, `organization_id` debe venir `null`.
-
-### 4.5 Feature organizations API base
-
-Crear/ajustar:
-
-- `backend/features/organizations/schemas.py` (si no existe)
-- `backend/features/organizations/api/routes.py`
-- `backend/features/organizations/wiring.py`
-- `backend/app/api.py` para incluir router
-
-Endpoints:
-
-1. `POST /organizations`
-   - Requiere usuario autenticado activo.
-   - Precondicion: `current_user.organization_id is None`.
-   - Body minimo: `name`.
-   - Crea organizacion + slug unico.
-   - Asigna:
-     - `organization.owner_user_id = current_user.id`
-     - `current_user.organization_id = organization.id`
-   - Operacion atomica (una transaccion).
-   - Respuestas:
-     - `201` exito
-     - `409` si usuario ya tiene organizacion
-     - `422` input invalido
-
-2. `GET /organizations/current`
-   - Requiere usuario con organizacion.
-   - Devuelve metadata minima (`id`, `name`, `slug`, `owner_user_id`, `is_active`).
-   - `403` si usuario no tiene organizacion.
-
-### 4.6 Service de organizations (base)
-
-En `backend/features/organizations/service.py`:
-
-- Mantener `get_current_organization_id` (ya existe).
-- Agregar helper para crear organizacion de usuario:
-  - validacion de precondiciones
-  - slug unico reutilizando algoritmo actual
-  - asignacion owner + membership del usuario
-  - commit/rollback seguro
+- Este PR no requiere cambios de esquema ni nueva migracion Alembic.
 
 ## 5) Ajustes de tests backend
 
-### 5.1 Actualizar tests existentes de auth
+### 5.1 Nuevo archivo de tests de autorizacion
 
-Archivo principal: `backend/tests/test_users.py`
+Crear `backend/tests/test_owner_member_authorization.py` con cobertura minima:
 
-- Cambiar expectativa de registro:
-  - antes: `organization_id` no null y `role == owner`
-  - ahora: `organization_id is null` y sin `role`
+1. Owner puede crear/editar products y locations.
+2. Member no puede crear/editar products y locations (`403`).
+3. Owner puede crear deliveries.
+4. Member no puede crear deliveries (`403`).
+5. Owner y member pueden listar/obtener resources (`GET` exitoso).
+6. Usuario sin organizacion recibe `403` en endpoints que requieren organizacion.
 
-### 5.2 Nuevo archivo de tests onboarding
+### 5.2 Tests de organization members
 
-Crear `backend/tests/test_organizations_onboarding.py` con casos:
+Agregar casos:
 
-1. Usuario autenticado sin organizacion puede crear una (`201`).
-2. Crear organizacion asigna owner correctamente:
-   - `organization.owner_user_id == current_user.id`
-   - `current_user.organization_id == organization.id`
-3. Usuario con organizacion no puede crear otra (`409`).
-4. `GET /organizations/current` devuelve org correcta.
-5. Usuario sin organizacion recibe `403` en `GET /organizations/current`.
-6. No autenticado recibe `401` en ambos endpoints.
+1. Owner obtiene listado de miembros (`200`).
+2. Member recibe `403` en `GET /organization-members`.
+3. No autenticado recibe `401`.
 
-### 5.3 Ajustar helpers compartidos de tests CRUD
+### 5.3 Helpers de tests
 
-Tests de `products`, `locations`, `deliveries` hoy asumen que register crea org.
-Actualizar helpers para:
+Actualizar helpers compartidos para poder armar escenario owner/member en una misma organizacion sin invitaciones:
 
-1. registrar usuario
-2. verificar email
-3. login
-4. crear organizacion via `POST /organizations`
+- crear owner con org via API
+- crear segundo usuario y asociarlo a la organizacion del owner desde fixture/helper de test (solo contexto tests)
 
-Con eso, se preserva el comportamiento actual de esos test files sin tocar permisos aun.
+Objetivo: probar permisos reales sin adelantar feature de invitaciones.
 
 ## 6) Verificacion y checks del PR
 
 Ejecutar:
 
-1. (Si aplica) resetear DB local para limpiar datos del esquema viejo.
-2. `cd backend && uv run pytest -q`
-3. `cd backend && uv run alembic upgrade head` en entorno local de prueba
-4. Smoke API manual:
-   - register -> users/me (`organization_id = null`)
-   - login -> POST /organizations
-   - users/me actualizado con `organization_id`
-   - GET /organizations/current ok
+1. `cd backend && uv run pytest -q`
+2. Smoke manual minimo:
+   - owner: POST/PATCH products y locations -> OK
+   - member: POST/PATCH products y locations -> 403
+   - owner: POST deliveries -> OK
+   - member: POST deliveries -> 403
+   - owner: GET /organization-members -> OK
 
 ## 7) Riesgos y mitigaciones
 
-Riesgo: tener DB local con datos viejos y esquema previo.
-- Mitigacion: resetear DB local antes de aplicar migracion.
+Riesgo: romper endpoints existentes al cambiar dependencias.
+- Mitigacion: cubrir matriz completa owner/member en tests nuevos.
 
-Riesgo: ambiguedad de relaciones SQLAlchemy por doble FK.
-- Mitigacion: declarar `foreign_keys` explicitamente en ambos modelos.
+Riesgo: duplicar logica de permisos en routers.
+- Mitigacion: centralizar chequeos en dependencias de `organizations/service.py`.
 
-Riesgo: romper tests existentes por cambio de bootstrap de tenant.
-- Mitigacion: helper comun de setup con creacion de organizacion por API.
+Riesgo: inconsistencia entre lectura y escritura.
+- Mitigacion: definir regla explicita por endpoint (read owner/member, write owner).
 
-## 8) Criterios de aceptacion del PR A
+## 8) Criterios de aceptacion del PR B
 
-- Registro ya no crea organizacion automaticamente.
-- `users.role` eliminado de modelo/esquema/migracion.
-- `organizations.owner_user_id` existe y queda poblado/no nulo.
-- PR documenta explicitamente que el cambio es de bootstrap (sin estrategia legacy).
-- Usuario autenticado sin organizacion puede crear exactamente una organizacion.
-- La organizacion creada queda ligada al usuario creador como owner unico.
+- Existe dependencia reutilizable para owner/member/user con organizacion.
+- Endpoints de escritura (`products`, `locations`, `deliveries`) quedan restringidos a owner.
+- Endpoints de lectura de esos modulos permiten owner y member.
+- `GET /organization-members` existe y funciona solo para owner.
+- No se introduce `users.role` nuevamente en ningun punto.
 - Suite backend en verde.
 
 ## 9) Secuencia de implementacion sugerida (orden interno)
 
-1. Migracion Alembic + modelos.
-2. Refactor de `auth/service.py` (registro).
-3. Schemas de auth (`UserRead` sin role).
-4. Organizations API + service de creacion manual.
-5. Wiring de router.
-6. Tests nuevos y ajustes de tests existentes.
-7. Run tests + smoke final.
+1. Implementar dependencias authz en `organizations/service.py`.
+2. Exponer `GET /organization-members` + schemas.
+3. Ajustar dependencias en routers de products/locations/deliveries.
+4. Crear tests de autorizacion owner/member.
+5. Ejecutar suite completa y smoke final.
