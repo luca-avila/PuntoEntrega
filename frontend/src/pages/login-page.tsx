@@ -19,6 +19,14 @@ const LOGIN_ERROR_MESSAGES: Record<string, string> = {
     "Tu cuenta todavía no está verificada. Revisá tu correo para activarla.",
 };
 
+const DISALLOWED_NEXT_PATHS = [
+  "/iniciar-sesion",
+  "/registro",
+  "/recuperar-contrasena",
+  "/restablecer-contrasena",
+  "/reset-password",
+];
+
 function mapLoginErrorToMessage(error: unknown): string {
   if (error instanceof ApiError) {
     const detail =
@@ -44,6 +52,14 @@ function sanitizeNextPath(nextPath: string | null): string | null {
   }
 
   if (!nextPath.startsWith("/") || nextPath.startsWith("//")) {
+    return null;
+  }
+
+  const lowerCasedPath = nextPath.toLowerCase();
+  const pointsToAuthRoute = DISALLOWED_NEXT_PATHS.some(
+    (path) => lowerCasedPath === path || lowerCasedPath.startsWith(`${path}?`),
+  );
+  if (pointsToAuthRoute) {
     return null;
   }
 

@@ -85,7 +85,6 @@ export function RegisterPage() {
       });
       const nextSearch = new URLSearchParams({
         registered: "1",
-        email: formValues.email,
       });
       navigate(`/iniciar-sesion?${nextSearch.toString()}`, { replace: true });
     } catch (error) {
