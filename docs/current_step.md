@@ -1,164 +1,213 @@
-# PR B - Owner/Member Authorization Base
+# PR C - Backend Invitations
 
 ## 1) Objetivo del PR
 
-Implementar la capa de autorizacion owner/member sobre el modelo nuevo de ownership:
+Implementar la feature de invitaciones de miembros por email en backend sobre el modelo owner/member ya existente:
 
-- El owner se define exclusivamente por `organizations.owner_user_id`.
-- No existe `users.role`.
-- Los endpoints operativos existentes deben aplicar permisos por tipo de usuario (owner o member).
+- El owner invita por email a usuarios para sumarse a su organización.
+- La invitación se acepta con token seguro y expiración.
+- Debe soportar aceptación con cuenta nueva y con cuenta existente autenticada.
 
-Este PR debe dejar permisos backend claros y consistentes, sin incluir todavia invitaciones ni peticiones de productos.
+Este PR debe dejar invitaciones funcionales de punta a punta en backend (persistencia + reglas + API + email), sin incluir todavía product requests ni cambios de frontend.
 
 ## 2) Alcance exacto (in scope)
 
-- Agregar dependencias reutilizables de autorizacion en `features/organizations/service.py`.
-- Exponer endpoint para listar miembros de la organizacion actual (solo owner).
-- Ajustar permisos en endpoints existentes de `products`, `locations` y `deliveries`.
-- Mantener routers finos (sin logica de negocio en handlers).
-- Ajustar tests backend para validar matriz de permisos owner/member.
+- Nueva tabla `organization_invitations` con migración Alembic.
+- Nueva feature `backend/features/invitations/` (`models`, `schemas`, `service`, `email`, `api/routes`, `wiring`).
+- Endpoints owner para crear/listar/cancelar invitaciones.
+- Endpoints públicos/auth para validar y aceptar invitaciones.
+- Envío de email de invitación reutilizando infraestructura de email existente.
+- Tests backend completos de reglas de negocio y seguridad.
 
 ## 3) Fuera de alcance (out of scope)
 
-- Feature de invitaciones por email.
-- Feature de peticiones de productos.
-- Cambios de frontend.
+- Product requests.
+- Cambios de permisos adicionales fuera de invitaciones.
+- Flujo frontend/UI de aceptación.
 - Co-owners o permisos granulares avanzados.
 
-## 4) Cambios tecnicos detallados
+## 4) Cambios técnicos detallados
 
-### 4.1 Dependencias de autorizacion reutilizables
+### 4.1 Migración Alembic
 
-En `backend/features/organizations/service.py`, agregar:
+Crear una nueva migración, por ejemplo:
 
-1. `get_current_user_with_optional_organization`
-   - retorna usuario autenticado activo
-   - no exige `organization_id`
+- `backend/alembic/versions/0004_create_organization_invitations.py`
 
-2. `get_current_user_with_organization`
-   - exige `organization_id` no nulo
-   - valida que la organizacion exista y este activa
-   - retorna usuario + organizacion actual
+Tabla `organization_invitations`:
 
-3. `require_organization_owner`
-   - depende de `get_current_user_with_organization`
-   - valida `organization.owner_user_id == current_user.id`
-   - si no cumple: `403`
+1. `id` UUID PK.
+2. `organization_id` UUID FK -> `organizations.id` (ondelete=`CASCADE`, index).
+3. `invited_email` string(320), normalizado lower-case (index).
+4. `invited_by_user_id` UUID FK -> `user.id` (ondelete=`RESTRICT`, index).
+5. `token_hash` string (no guardar token plano).
+6. `status` enum/string: `pending|accepted|expired|cancelled` (index).
+7. `expires_at` datetime tz (index recomendado).
+8. `accepted_at` datetime tz nullable.
+9. `created_at`, `updated_at`.
 
-4. `require_organization_member`
-   - depende de `get_current_user_with_organization`
-   - valida usuario con organizacion y `organization.owner_user_id != current_user.id`
-   - si no cumple: `403`
+Regla funcional:
+- Para `organization_id + invited_email`, solo una invitación `pending` activa a la vez.
+- Si se vuelve a invitar y existe `pending`, se reutiliza registro, se renueva token y expiración.
 
-5. `require_organization_user`
-   - owner o member (usuario con organizacion valida)
-   - utilidad para endpoints de lectura
+Compatibilidad:
+- Mantener soporte SQLite en tests.
 
-Notas:
-- Reusar mensajes de error claros y consistentes.
-- Evitar duplicar queries de organizacion innecesariamente.
+### 4.2 Modelo SQLAlchemy
 
-### 4.2 Endpoint de miembros de organizacion
+Crear `backend/features/invitations/models.py` con:
 
-Crear en `backend/features/organizations/api/routes.py`:
+- Modelo `OrganizationInvitation`.
+- Enum/constante de estado de invitación.
+- Relaciones mínimas a organización y usuario invitador.
 
-- `GET /organization-members`
-  - requiere owner
-  - lista usuarios de su organizacion actual
-  - campos minimos por item: `id`, `email`, `is_active`, `is_verified`, `created_at`
+Actualizar `backend/features/models_registry.py` para registrar el nuevo módulo.
 
-Agregar/ajustar schemas en `backend/features/organizations/schemas.py` para la respuesta.
+### 4.3 Schemas Pydantic
 
-### 4.3 Ajustes de permisos en endpoints existentes
+Crear `backend/features/invitations/schemas.py`:
 
-Aplicar dependencia correcta por endpoint:
+1. Request owner create:
+   - `OrganizationInvitationCreate` (`email`).
 
-#### Products
-- `GET /products` y `GET /products/{id}`: `require_organization_user`
-- `POST /products` y `PATCH /products/{id}`: `require_organization_owner`
+2. Read owner list:
+   - `OrganizationInvitationRead` (id, invited_email, status, expires_at, accepted_at, created_at, invited_by_user_id).
 
-#### Locations
-- `GET /locations` y `GET /locations/{id}`: `require_organization_user`
-- `POST /locations` y `PATCH /locations/{id}`: `require_organization_owner`
+3. Accept info público:
+   - `OrganizationInvitationAcceptInfoRead` (estado de validez, organización mínima, email invitado, expiración).
 
-#### Deliveries
-- `GET /deliveries` y `GET /deliveries/{id}`: `require_organization_user`
-- `POST /deliveries`: `require_organization_owner`
+4. Accept cuenta nueva:
+   - `OrganizationInvitationAcceptCreate` (`token`, `password`, `password_confirm` si ya usan confirmación).
 
-Importante:
-- Mantener aislamiento multi-tenant actual.
-- No mover reglas de dominio a routers; solo control de acceso en capa dependencia/entrada.
+5. Accept autenticado:
+   - `OrganizationInvitationAcceptAuthenticated` (`token`).
 
-### 4.4 Migraciones
+### 4.4 Servicio de invitaciones
 
-- Este PR no requiere cambios de esquema ni nueva migracion Alembic.
+Crear `backend/features/invitations/service.py` con casos de uso explícitos:
+
+1. `create_or_resend_invitation(...)`
+   - Requiere owner.
+   - Normaliza email a lower-case.
+   - Valida conflictos:
+     - si email pertenece a usuario de otra organización -> `409`.
+     - si pertenece a usuario de la misma organización -> `409`.
+   - Si hay pending existente (org+email): reutiliza, renueva token+expires_at, estado `pending`.
+   - Si no hay pending: crea invitación nueva.
+   - Token seguro (secreto), persistir solo hash.
+   - Commit atómico.
+
+2. `list_invitations_for_organization(...)`
+   - Owner.
+
+3. `cancel_invitation(...)`
+   - Owner.
+   - Solo pending de su organización.
+   - Pasa a `cancelled`.
+
+4. `get_accept_info(token)`
+   - Público.
+   - Resuelve por hash.
+   - Detecta inválido/expirado/cancelado/aceptado.
+
+5. `accept_invitation_new_account(token, password, ...)`
+   - Público.
+   - Token válido y pending.
+   - Crea usuario con `organization_id` de la invitación.
+   - Marca usuario `is_verified = true`.
+   - Marca invitación `accepted` + `accepted_at`.
+   - Operación atómica.
+
+6. `accept_invitation_authenticated(token, current_user)`
+   - Usuario autenticado.
+   - Email del usuario logueado debe coincidir con `invited_email`.
+   - Usuario debe tener `organization_id IS NULL`.
+   - Marca usuario dentro de la organización.
+   - Marca invitación `accepted` + `accepted_at`.
+   - Operación atómica.
+
+Config:
+- Expiración configurable (default 72h).
+
+### 4.5 Email de invitación
+
+Crear `backend/features/invitations/email.py`:
+
+- Reusar proveedor/config de email ya usado en auth.
+- Construir link: `${FRONTEND_URL}/aceptar-invitacion?token=...`.
+- Enviar en creación/reenvío.
+
+### 4.6 API Routes + Wiring
+
+Crear `backend/features/invitations/api/routes.py`:
+
+1. `POST /organization-invitations` (owner)
+2. `GET /organization-invitations` (owner)
+3. `POST /organization-invitations/{invitation_id}/cancel` (owner)
+4. `GET /organization-invitations/accept-info?token=...` (público)
+5. `POST /organization-invitations/accept` (público, cuenta nueva)
+6. `POST /organization-invitations/accept-authenticated` (autenticado)
+
+Agregar `backend/features/invitations/wiring.py` y montar router en `backend/app/api.py`.
+
+Mantener handlers finos:
+- Validan payload/dependencias.
+- Delegan negocio al service.
 
 ## 5) Ajustes de tests backend
 
-### 5.1 Nuevo archivo de tests de autorizacion
+Crear `backend/tests/test_invitations.py` con cobertura mínima:
 
-Crear `backend/tests/test_owner_member_authorization.py` con cobertura minima:
+1. Owner puede invitar (`201`).
+2. Member no puede invitar/listar/cancelar (`403`).
+3. No autenticado recibe `401` en endpoints protegidos.
+4. Si ya existe pending para email+org -> reutiliza invitación y reenvía (sin duplicar pending).
+5. No permite invitar email de usuario en otra organización (`409`).
+6. No permite invitar email ya miembro de la misma organización (`409`).
+7. `accept-info` responde válido para token vigente.
+8. `accept-info` responde inválido/expirado/cancelado/aceptado según estado.
+9. Aceptación cuenta nueva crea usuario en org correcta y marca invitación `accepted`.
+10. Aceptación autenticada exige email coincidente y usuario sin organización.
+11. Token no puede reutilizarse después de aceptar.
 
-1. Owner puede crear/editar products y locations.
-2. Member no puede crear/editar products y locations (`403`).
-3. Owner puede crear deliveries.
-4. Member no puede crear deliveries (`403`).
-5. Owner y member pueden listar/obtener resources (`GET` exitoso).
-6. Usuario sin organizacion recibe `403` en endpoints que requieren organizacion.
-
-### 5.2 Tests de organization members
-
-Agregar casos:
-
-1. Owner obtiene listado de miembros (`200`).
-2. Member recibe `403` en `GET /organization-members`.
-3. No autenticado recibe `401`.
-
-### 5.3 Helpers de tests
-
-Actualizar helpers compartidos para poder armar escenario owner/member en una misma organizacion sin invitaciones:
-
-- crear owner con org via API
-- crear segundo usuario y asociarlo a la organizacion del owner desde fixture/helper de test (solo contexto tests)
-
-Objetivo: probar permisos reales sin adelantar feature de invitaciones.
-
-## 6) Verificacion y checks del PR
+## 6) Verificación y checks del PR
 
 Ejecutar:
 
-1. `cd backend && uv run pytest -q`
-2. Smoke manual minimo:
-   - owner: POST/PATCH products y locations -> OK
-   - member: POST/PATCH products y locations -> 403
-   - owner: POST deliveries -> OK
-   - member: POST deliveries -> 403
-   - owner: GET /organization-members -> OK
+1. `cd backend && uv run alembic upgrade head`
+2. `cd backend && uv run pytest -q`
+3. Smoke manual:
+   - owner invita email
+   - listar invitaciones
+   - `accept-info` con token
+   - aceptar invitación (new account)
+   - validar que invitación queda `accepted`
 
 ## 7) Riesgos y mitigaciones
 
-Riesgo: romper endpoints existentes al cambiar dependencias.
-- Mitigacion: cubrir matriz completa owner/member en tests nuevos.
+Riesgo: vulnerabilidad por token plano o validación insuficiente.
+- Mitigación: persistir solo hash, comparar de forma segura, validar estado/expiración en un único punto.
 
-Riesgo: duplicar logica de permisos en routers.
-- Mitigacion: centralizar chequeos en dependencias de `organizations/service.py`.
+Riesgo: inconsistencias al aceptar invitación.
+- Mitigación: aceptar con transacción atómica (usuario + invitación).
 
-Riesgo: inconsistencia entre lectura y escritura.
-- Mitigacion: definir regla explicita por endpoint (read owner/member, write owner).
+Riesgo: duplicación de invitaciones pending.
+- Mitigación: regla de unicidad funcional y lógica de reutilización.
 
-## 8) Criterios de aceptacion del PR B
+## 8) Criterios de aceptación del PR C
 
-- Existe dependencia reutilizable para owner/member/user con organizacion.
-- Endpoints de escritura (`products`, `locations`, `deliveries`) quedan restringidos a owner.
-- Endpoints de lectura de esos modulos permiten owner y member.
-- `GET /organization-members` existe y funciona solo para owner.
-- No se introduce `users.role` nuevamente en ningun punto.
+- Feature `invitations` creada e integrada al app.
+- Owner puede crear/listar/cancelar invitaciones.
+- Aceptación pública y autenticada funcionan según reglas.
+- Invitaciones usan token hasheado y expiración.
+- Reenvío reutiliza pending existente para `organization + email`.
 - Suite backend en verde.
 
-## 9) Secuencia de implementacion sugerida (orden interno)
+## 9) Secuencia de implementación sugerida (orden interno)
 
-1. Implementar dependencias authz en `organizations/service.py`.
-2. Exponer `GET /organization-members` + schemas.
-3. Ajustar dependencias en routers de products/locations/deliveries.
-4. Crear tests de autorizacion owner/member.
-5. Ejecutar suite completa y smoke final.
+1. Migración + modelo `OrganizationInvitation`.
+2. Schemas y servicio (reglas core).
+3. Email y construcción de link.
+4. API routes + wiring.
+5. Tests completos de invitaciones.
+6. Run tests + smoke final.
