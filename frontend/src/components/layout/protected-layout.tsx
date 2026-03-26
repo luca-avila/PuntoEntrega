@@ -4,10 +4,17 @@ import { useAuth } from "@/hooks/use-auth";
 import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
-const sharedNavigationItems = [
+const ownerNavigationItems = [
   { to: "/entregas", label: "Historial" },
   { to: "/ubicaciones", label: "Ubicaciones" },
   { to: "/productos", label: "Productos" },
+  { to: "/", label: "Inicio" },
+];
+
+const memberNavigationItems = [
+  { to: "/entregas", label: "Historial" },
+  { to: "/ubicaciones", label: "Ubicaciones" },
+  { to: "/productos", label: "Solicitar productos" },
   { to: "/", label: "Inicio" },
 ];
 
@@ -30,10 +37,10 @@ export function ProtectedLayout() {
     : isOwner
       ? [
           { to: "/entregas/nueva", label: "Nueva entrega" },
-          ...sharedNavigationItems,
+          ...ownerNavigationItems,
           { to: "/equipo", label: "Equipo" },
         ]
-      : sharedNavigationItems;
+      : memberNavigationItems;
 
   const handleLogout = async () => {
     setIsLoggingOut(true);

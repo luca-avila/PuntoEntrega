@@ -94,7 +94,7 @@ export function ProductsListPage() {
     <section className="page-section">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="page-title">Productos</h2>
+          <h2 className="page-title">{isOwner ? "Productos" : "Solicitar productos"}</h2>
           <p className="page-description">
             {isOwner
               ? "Administrá el catálogo de productos de tu organización."

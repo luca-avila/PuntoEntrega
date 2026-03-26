@@ -78,7 +78,13 @@ export function HomePage() {
     );
   }
 
-  const visibleItems = quickAccessItems.filter((item) => !item.ownerOnly || isOwner);
+  const visibleItems = quickAccessItems
+    .filter((item) => !item.ownerOnly || isOwner)
+    .map((item) =>
+      !isOwner && item.to === "/productos"
+        ? { ...item, title: "Solicitar productos" }
+        : item,
+    );
 
   return (
     <section className="page-section flex w-full justify-center">
