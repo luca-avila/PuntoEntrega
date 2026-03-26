@@ -89,7 +89,7 @@ async def list_organization_members(
             is_active=membership.user.is_active,
             is_verified=membership.user.is_verified,
             location_id=membership.location_id,
-            created_at=getattr(membership.user, "created_at", None),
+            created_at=membership.created_at,
         )
         for membership in members
     ]

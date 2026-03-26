@@ -33,7 +33,7 @@ class OrganizationMemberRead(BaseModel):
     is_active: bool
     is_verified: bool
     location_id: uuid.UUID | None = None
-    created_at: datetime | None = None
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 

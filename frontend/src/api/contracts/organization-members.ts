@@ -6,5 +6,5 @@ export interface OrganizationMemberRead {
   is_active: boolean;
   is_verified: boolean;
   location_id: UUID | null;
-  created_at: ISODateTime | null;
+  created_at: ISODateTime;
 }

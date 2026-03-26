@@ -187,7 +187,7 @@ export function TeamPage() {
                     <p className="text-sm font-medium">{member.email}</p>
                     <p className="text-xs text-muted-foreground">
                       {member.is_verified ? "Verificado" : "Sin verificar"} ·{" "}
-                      {member.is_active ? "Activo" : "Inactivo"} · Alta:{" "}
+                      {member.is_active ? "Activo" : "Inactivo"} · Alta en organización:{" "}
                       {formatDateTime(member.created_at)}
                     </p>
                     <p className="text-xs text-muted-foreground">

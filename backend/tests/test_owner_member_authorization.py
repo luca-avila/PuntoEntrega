@@ -283,6 +283,7 @@ class TestOrganizationMembersEndpoint:
         emails = {member["email"] for member in payload}
         assert owner_email in emails
         assert member_email in emails
+        assert all(member["created_at"] is not None for member in payload)
 
     async def test_member_cannot_list_organization_members(self, client: AsyncClient):
         _owner_email, member_email, _organization_id = await setup_owner_and_member(
