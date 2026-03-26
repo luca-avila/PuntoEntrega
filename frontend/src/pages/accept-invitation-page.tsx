@@ -213,6 +213,10 @@ export function AcceptInvitationPage() {
                   >
                     {isAcceptingAuthenticated ? "Aceptando..." : "Aceptar invitación con mi cuenta"}
                   </Button>
+                ) : status === "loading" ? (
+                  <Button className="w-full" disabled>
+                    Verificando sesión...
+                  </Button>
                 ) : (
                   <Button className="w-full" onClick={() => navigate(loginRedirectPath)}>
                     Iniciar sesión para aceptar
@@ -221,57 +225,59 @@ export function AcceptInvitationPage() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Aceptar con cuenta nueva</CardTitle>
-                <CardDescription>
-                  Creá tu contraseña para activar la cuenta invitada.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form className="space-y-3" noValidate onSubmit={onSubmitNewAccount}>
-                  <div className="space-y-2">
-                    <Label htmlFor="new-password">Contraseña</Label>
-                    <Input
-                      id="new-password"
-                      type="password"
-                      autoComplete="new-password"
-                      placeholder="********"
-                      {...register("password", {
-                        required: "La contraseña es obligatoria.",
-                        minLength: {
-                          value: 8,
-                          message: "Debe tener al menos 8 caracteres.",
-                        },
-                      })}
-                    />
-                    {errors.password ? (
-                      <p className="text-sm text-destructive">{errors.password.message}</p>
-                    ) : null}
-                  </div>
+            {status === "unauthenticated" ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Aceptar con cuenta nueva</CardTitle>
+                  <CardDescription>
+                    Creá tu contraseña para activar la cuenta invitada.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form className="space-y-3" noValidate onSubmit={onSubmitNewAccount}>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-password">Contraseña</Label>
+                      <Input
+                        id="new-password"
+                        type="password"
+                        autoComplete="new-password"
+                        placeholder="********"
+                        {...register("password", {
+                          required: "La contraseña es obligatoria.",
+                          minLength: {
+                            value: 8,
+                            message: "Debe tener al menos 8 caracteres.",
+                          },
+                        })}
+                      />
+                      {errors.password ? (
+                        <p className="text-sm text-destructive">{errors.password.message}</p>
+                      ) : null}
+                    </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="new-password-confirm">Confirmar contraseña</Label>
-                    <Input
-                      id="new-password-confirm"
-                      type="password"
-                      autoComplete="new-password"
-                      placeholder="********"
-                      {...register("passwordConfirm", {
-                        required: "Confirmá tu contraseña.",
-                      })}
-                    />
-                    {errors.passwordConfirm ? (
-                      <p className="text-sm text-destructive">{errors.passwordConfirm.message}</p>
-                    ) : null}
-                  </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new-password-confirm">Confirmar contraseña</Label>
+                      <Input
+                        id="new-password-confirm"
+                        type="password"
+                        autoComplete="new-password"
+                        placeholder="********"
+                        {...register("passwordConfirm", {
+                          required: "Confirmá tu contraseña.",
+                        })}
+                      />
+                      {errors.passwordConfirm ? (
+                        <p className="text-sm text-destructive">{errors.passwordConfirm.message}</p>
+                      ) : null}
+                    </div>
 
-                  <Button className="w-full" disabled={isSubmitting} type="submit">
-                    {isSubmitting ? "Aceptando..." : "Aceptar con cuenta nueva"}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
+                    <Button className="w-full" disabled={isSubmitting} type="submit">
+                      {isSubmitting ? "Aceptando..." : "Aceptar con cuenta nueva"}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            ) : null}
           </>
         ) : (
           <Card>
