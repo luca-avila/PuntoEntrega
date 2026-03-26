@@ -24,6 +24,10 @@ function mapVerificationError(error: unknown): string {
     if (error.status >= 500) {
       return "No pudimos verificar la cuenta por un error del servidor. Intentá nuevamente.";
     }
+
+    if (typeof detail === "string" && detail.trim().length > 0) {
+      return `No pudimos verificar tu cuenta: ${detail}`;
+    }
   }
 
   return "No pudimos verificar tu cuenta. Revisá el enlace e intentá nuevamente.";

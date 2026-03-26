@@ -11,8 +11,10 @@ from core.errors import EmailSendError
 logger = logging.getLogger(__name__)
 
 RESEND_API_URL = "https://api.resend.com/emails"
-VERIFY_EMAIL_PATH = "/verify-email"
-RESET_PASSWORD_PATH = "/reset-password"
+# Keep Spanish routes in outgoing emails for backward compatibility with
+# older frontend deployments that may not include the English aliases yet.
+VERIFY_EMAIL_PATH = "/verificar-email"
+RESET_PASSWORD_PATH = "/restablecer-contrasena"
 
 
 def _extract_resend_error_detail(raw_body: str) -> str:
