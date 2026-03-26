@@ -34,7 +34,7 @@ const statusDescriptionMap: Record<OrganizationInvitationAcceptInfoRead["status"
 export function AcceptInvitationPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { status } = useAuth();
+  const { status, refreshSession } = useAuth();
 
   const token = (searchParams.get("token") ?? "").trim();
 
@@ -136,6 +136,7 @@ export function AcceptInvitationPage() {
     setAcceptSuccessMessage(null);
     try {
       await invitationsApi.acceptAuthenticated({ token });
+      await refreshSession();
       setAcceptSuccessMessage("Invitación aceptada correctamente.");
       await loadAcceptInfo();
       navigate("/", { replace: true });
