@@ -87,10 +87,20 @@ async def _get_pending_invitation_for_email(
     return result.scalar_one_or_none()
 
 
-def _build_invalid_accept_info(status_value: InvitationAcceptInfoStatus) -> OrganizationInvitationAcceptInfoRead:
+def _build_invalid_accept_info(
+    status_value: InvitationAcceptInfoStatus,
+    invitation: OrganizationInvitation | None = None,
+    invited_user_exists: bool | None = None,
+) -> OrganizationInvitationAcceptInfoRead:
     return OrganizationInvitationAcceptInfoRead(
         status=status_value,
         is_valid=False,
+        invited_email=invitation.invited_email if invitation is not None else None,
+        organization_id=invitation.organization_id if invitation is not None else None,
+        organization_name=invitation.organization.name if invitation is not None and invitation.organization else None,
+        location_id=invitation.location_id if invitation is not None else None,
+        expires_at=invitation.expires_at if invitation is not None else None,
+        invited_user_exists=invited_user_exists,
     )
 
 
@@ -293,6 +303,8 @@ async def get_accept_info(
         return _build_invalid_accept_info(InvitationAcceptInfoStatus.INVALID)
 
     await _expire_if_needed(session, invitation)
+    invited_user = await _find_user_by_email(session, invitation.invited_email)
+    invited_user_exists = invited_user is not None
 
     if invitation.status == InvitationStatus.PENDING:
         return OrganizationInvitationAcceptInfoRead(
@@ -302,15 +314,28 @@ async def get_accept_info(
             organization_id=invitation.organization_id,
             organization_name=invitation.organization.name if invitation.organization else None,
             location_id=invitation.location_id,
+            invited_user_exists=invited_user_exists,
             expires_at=invitation.expires_at,
         )
 
     if invitation.status == InvitationStatus.EXPIRED:
-        return _build_invalid_accept_info(InvitationAcceptInfoStatus.EXPIRED)
+        return _build_invalid_accept_info(
+            InvitationAcceptInfoStatus.EXPIRED,
+            invitation=invitation,
+            invited_user_exists=invited_user_exists,
+        )
     if invitation.status == InvitationStatus.CANCELLED:
-        return _build_invalid_accept_info(InvitationAcceptInfoStatus.CANCELLED)
+        return _build_invalid_accept_info(
+            InvitationAcceptInfoStatus.CANCELLED,
+            invitation=invitation,
+            invited_user_exists=invited_user_exists,
+        )
     if invitation.status == InvitationStatus.ACCEPTED:
-        return _build_invalid_accept_info(InvitationAcceptInfoStatus.ACCEPTED)
+        return _build_invalid_accept_info(
+            InvitationAcceptInfoStatus.ACCEPTED,
+            invitation=invitation,
+            invited_user_exists=invited_user_exists,
+        )
 
     return _build_invalid_accept_info(InvitationAcceptInfoStatus.INVALID)
 

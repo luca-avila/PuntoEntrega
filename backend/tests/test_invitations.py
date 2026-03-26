@@ -277,6 +277,7 @@ class TestOrganizationInvitations:
         assert payload["status"] == "valid"
         assert payload["invited_email"] == "accept-info-valid@example.com"
         assert payload["location_id"] == str(location_id)
+        assert payload["invited_user_exists"] is False
 
     async def test_accept_info_reports_invalid_expired_cancelled_and_accepted_states(
         self,
@@ -375,7 +376,11 @@ class TestOrganizationInvitations:
             params={"token": accepted_token},
         )
         assert accepted_state_response.status_code == 200
-        assert accepted_state_response.json()["status"] == "accepted"
+        accepted_payload = accepted_state_response.json()
+        assert accepted_payload["status"] == "accepted"
+        assert accepted_payload["organization_name"] == "Organización inv-owner-accept-info-states"
+        assert accepted_payload["invited_email"] == accepted_email
+        assert accepted_payload["invited_user_exists"] is True
 
     async def test_accept_invitation_new_account_creates_user_and_marks_invitation_accepted(
         self,

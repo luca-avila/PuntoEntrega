@@ -38,6 +38,7 @@ export interface OrganizationInvitationAcceptInfoRead {
   organization_id: UUID | null;
   organization_name: string | null;
   location_id: UUID | null;
+  invited_user_exists: boolean | null;
   expires_at: ISODateTime | null;
 }
 

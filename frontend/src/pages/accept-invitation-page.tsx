@@ -63,15 +63,16 @@ export function AcceptInvitationPage() {
     setAcceptSuccessMessage(null);
 
     if (!token) {
-        setInvitationInfo({
-          status: "invalid",
-          is_valid: false,
-          invited_email: null,
-          organization_id: null,
-          organization_name: null,
-          location_id: null,
-          expires_at: null,
-        });
+      setInvitationInfo({
+        status: "invalid",
+        is_valid: false,
+        invited_email: null,
+        organization_id: null,
+        organization_name: null,
+        location_id: null,
+        invited_user_exists: null,
+        expires_at: null,
+      });
       setIsLoadingInfo(false);
       return;
     }
@@ -88,6 +89,7 @@ export function AcceptInvitationPage() {
         organization_id: null,
         organization_name: null,
         location_id: null,
+        invited_user_exists: null,
         expires_at: null,
       });
     } finally {
@@ -170,6 +172,9 @@ export function AcceptInvitationPage() {
 
   const info = invitationInfo;
   const isValid = Boolean(info?.is_valid);
+  const invitedUserExists = info?.invited_user_exists === true;
+  const showExistingAccountCard =
+    isValid && (status === "authenticated" || status === "loading" || invitedUserExists);
 
   return (
     <div className="auth-shell">
@@ -200,33 +205,35 @@ export function AcceptInvitationPage() {
 
         {isValid ? (
           <>
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Aceptar con cuenta existente</CardTitle>
-                <CardDescription>
-                  Ingresá con el mismo email invitado para unirte a la organización.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {status === "authenticated" ? (
-                  <Button
-                    onClick={() => void handleAcceptAuthenticated()}
-                    disabled={isAcceptingAuthenticated}
-                    className="w-full"
-                  >
-                    {isAcceptingAuthenticated ? "Aceptando..." : "Aceptar invitación con mi cuenta"}
-                  </Button>
-                ) : status === "loading" ? (
-                  <Button className="w-full" disabled>
-                    Verificando sesión...
-                  </Button>
-                ) : (
-                  <Button className="w-full" onClick={() => navigate(loginRedirectPath)}>
-                    Iniciar sesión para aceptar
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+            {showExistingAccountCard ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Aceptar con cuenta existente</CardTitle>
+                  <CardDescription>
+                    Ingresá con el mismo email invitado para unirte a la organización.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {status === "authenticated" ? (
+                    <Button
+                      onClick={() => void handleAcceptAuthenticated()}
+                      disabled={isAcceptingAuthenticated}
+                      className="w-full"
+                    >
+                      {isAcceptingAuthenticated ? "Aceptando..." : "Aceptar invitación con mi cuenta"}
+                    </Button>
+                  ) : status === "loading" ? (
+                    <Button className="w-full" disabled>
+                      Verificando sesión...
+                    </Button>
+                  ) : (
+                    <Button className="w-full" onClick={() => navigate(loginRedirectPath)}>
+                      Iniciar sesión para aceptar
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
 
             {status === "unauthenticated" ? (
               <Card>

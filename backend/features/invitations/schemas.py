@@ -55,6 +55,7 @@ class OrganizationInvitationAcceptInfoRead(BaseModel):
     organization_id: uuid.UUID | None = None
     organization_name: str | None = None
     location_id: uuid.UUID | None = None
+    invited_user_exists: bool | None = None
     expires_at: datetime | None = None
 
 
