@@ -20,7 +20,8 @@ def _build_product_request_email_html(
     requested_for_location_name: str,
     requested_for_location_address: str,
     request_subject: str,
-    request_message: str,
+    request_message: str | None,
+    request_items: list[tuple[str, str]],
     requested_at: datetime,
 ) -> str:
     safe_organization_name = escape(organization_name)
@@ -28,7 +29,15 @@ def _build_product_request_email_html(
     safe_requested_for_location_name = escape(requested_for_location_name)
     safe_requested_for_location_address = escape(requested_for_location_address)
     safe_subject = escape(request_subject)
-    safe_message = escape(request_message).replace("\n", "<br/>")
+    safe_message = (
+        escape(request_message).replace("\n", "<br/>")
+        if request_message and request_message.strip()
+        else "Sin comentarios adicionales."
+    )
+    safe_items_html = "".join(
+        f"<li><strong>{escape(product_name)}</strong>: {escape(quantity_label)}</li>"
+        for product_name, quantity_label in request_items
+    )
     requested_at_label = _format_requested_at_for_argentina(requested_at)
 
     return (
@@ -40,6 +49,7 @@ def _build_product_request_email_html(
         f"<p><strong>Dirección destino:</strong> {safe_requested_for_location_address}</p>"
         f"<p><strong>Fecha:</strong> {requested_at_label}</p>"
         f"<p><strong>Asunto:</strong> {safe_subject}</p>"
+        f"<p><strong>Productos solicitados:</strong></p><ul>{safe_items_html}</ul>"
         f"<p><strong>Mensaje:</strong><br/>{safe_message}</p>"
     )
 
@@ -51,7 +61,8 @@ async def send_product_request_email(
     requested_for_location_name: str,
     requested_for_location_address: str,
     request_subject: str,
-    request_message: str,
+    request_message: str | None,
+    request_items: list[tuple[str, str]],
     requested_at: datetime,
 ) -> None:
     await _send_email(
@@ -64,6 +75,7 @@ async def send_product_request_email(
             requested_for_location_address=requested_for_location_address,
             request_subject=request_subject,
             request_message=request_message,
+            request_items=request_items,
             requested_at=requested_at,
         ),
     )

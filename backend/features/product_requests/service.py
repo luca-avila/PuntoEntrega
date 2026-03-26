@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import uuid
+from decimal import Decimal
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -10,8 +11,13 @@ from sqlalchemy.orm import selectinload
 from core.db import async_session_maker
 from features.auth.models import User
 from features.organizations.models import MembershipRole, OrganizationMembership
+from features.organizations.service import ensure_products_belong_to_organization
 from features.product_requests.email import send_product_request_email
-from features.product_requests.models import ProductRequest, ProductRequestEmailStatus
+from features.product_requests.models import (
+    ProductRequest,
+    ProductRequestEmailStatus,
+    ProductRequestItem,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +47,12 @@ def _owner_not_sendable_reason(owner: User | None) -> str:
     return "El owner de la organización no es enviable."
 
 
+def _format_quantity_for_email(quantity: Decimal) -> str:
+    if quantity == quantity.to_integral_value():
+        return str(int(quantity))
+    return format(quantity.normalize(), "f")
+
+
 async def _get_product_request_or_none(
     session: AsyncSession,
     product_request_id: uuid.UUID,
@@ -52,6 +64,7 @@ async def _get_product_request_or_none(
             selectinload(ProductRequest.organization),
             selectinload(ProductRequest.requested_by_user),
             selectinload(ProductRequest.requested_for_location),
+            selectinload(ProductRequest.items).selectinload(ProductRequestItem.product),
         )
     )
     return result.scalar_one_or_none()
@@ -106,8 +119,15 @@ async def create_product_request(
     requested_by_user_id: uuid.UUID,
     requested_for_location_id: uuid.UUID,
     subject: str,
-    message: str,
+    message: str | None,
+    items: list[tuple[uuid.UUID, Decimal]],
 ) -> ProductRequest:
+    await ensure_products_belong_to_organization(
+        session=session,
+        organization_id=organization_id,
+        product_ids=(product_id for product_id, _quantity in items),
+    )
+
     product_request = ProductRequest(
         organization_id=organization_id,
         requested_by_user_id=requested_by_user_id,
@@ -118,9 +138,27 @@ async def create_product_request(
         email_attempts=0,
     )
     session.add(product_request)
+
+    await session.flush()
+
+    for product_id, quantity in items:
+        session.add(
+            ProductRequestItem(
+                product_request_id=product_request.id,
+                product_id=product_id,
+                quantity=quantity,
+            )
+        )
+
     await session.commit()
-    await session.refresh(product_request)
-    return product_request
+
+    created_product_request = await _get_product_request_or_none(
+        session=session,
+        product_request_id=product_request.id,
+    )
+    if created_product_request is None:
+        raise RuntimeError("No se pudo recuperar la solicitud de producto creada.")
+    return created_product_request
 
 
 async def list_product_requests_for_organization(
@@ -130,6 +168,7 @@ async def list_product_requests_for_organization(
     result = await session.execute(
         select(ProductRequest)
         .where(ProductRequest.organization_id == organization_id)
+        .options(selectinload(ProductRequest.items))
         .order_by(ProductRequest.created_at.desc())
     )
     return list(result.scalars().all())
@@ -197,6 +236,15 @@ async def send_product_request_email_in_background(
                 if product_request.requested_for_location is not None
                 else "Sin dirección"
             )
+            request_items = [
+                (
+                    item.product.name if item.product is not None else str(item.product_id),
+                    _format_quantity_for_email(item.quantity),
+                )
+                for item in product_request.items
+            ]
+            if not request_items:
+                request_items = [("Sin productos especificados", "-")]
 
             try:
                 await send_product_request_email(
@@ -207,6 +255,7 @@ async def send_product_request_email_in_background(
                     requested_for_location_address=requested_for_location_address,
                     request_subject=product_request.subject,
                     request_message=product_request.message,
+                    request_items=request_items,
                     requested_at=product_request.created_at,
                 )
                 await _set_product_request_sent(

@@ -10,6 +10,7 @@ from features.auth.models import Base
 if TYPE_CHECKING:
     from features.deliveries.models import DeliveryItem
     from features.organizations.models import Organization
+    from features.product_requests.models import ProductRequestItem
 
 
 class Product(Base):
@@ -48,4 +49,6 @@ class Product(Base):
 
     organization: Mapped["Organization"] = relationship(back_populates="products")
     delivery_items: Mapped[list["DeliveryItem"]] = relationship(back_populates="product")
-
+    product_request_items: Mapped[list["ProductRequestItem"]] = relationship(
+        back_populates="product"
+    )

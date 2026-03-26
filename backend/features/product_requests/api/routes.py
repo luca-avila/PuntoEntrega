@@ -46,6 +46,7 @@ async def create_product_request_endpoint(
         requested_for_location_id=member_location_id,
         subject=payload.subject,
         message=payload.message,
+        items=[(item.product_id, item.quantity) for item in payload.items],
     )
     background_tasks.add_task(
         send_product_request_email_in_background,

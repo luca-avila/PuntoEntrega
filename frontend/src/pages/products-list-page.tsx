@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { getApiErrorMessage } from "@/lib/errors";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useFieldArray, useForm } from "react-hook-form";
 import { useNavigate } from "react-router-dom";
 
 type ProductsFilter = "all" | "active" | "inactive";
@@ -16,6 +17,10 @@ type ProductsFilter = "all" | "active" | "inactive";
 interface ProductRequestFormValues {
   subject: string;
   message: string;
+  items: Array<{
+    product_id: string;
+    quantity: string;
+  }>;
 }
 
 const FILTER_OPTIONS: Array<{ value: ProductsFilter; label: string }> = [
@@ -36,14 +41,22 @@ export function ProductsListPage() {
 
   const {
     register,
+    control,
     handleSubmit,
+    setError,
+    clearErrors,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<ProductRequestFormValues>({
     defaultValues: {
       subject: "",
       message: "",
+      items: [{ product_id: "", quantity: "1" }],
     },
+  });
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: "items",
   });
 
   const loadProducts = useCallback(async () => {
@@ -74,17 +87,92 @@ export function ProductsListPage() {
 
     return products;
   }, [products, filter]);
+  const requestableProducts = useMemo(
+    () => products.filter((product) => product.is_active),
+    [products],
+  );
+
+  const addRequestItemRow = () => {
+    append({ product_id: "", quantity: "1" });
+  };
+
+  const removeRequestItemRow = (index: number) => {
+    if (fields.length === 1) {
+      return;
+    }
+    remove(index);
+  };
 
   const onSubmitProductRequest = handleSubmit(async (formValues) => {
     setRequestSuccessMessage(null);
     setRequestErrorMessage(null);
+    clearErrors("items");
+
+    const normalizedItems: Array<{ product_id: string; quantity: string }> = [];
+    const seenProductIds = new Set<string>();
+    let hasValidationError = false;
+
+    formValues.items.forEach((item, index) => {
+      const productId = item.product_id.trim();
+      const quantity = item.quantity.trim();
+
+      if (!productId) {
+        hasValidationError = true;
+        setError(`items.${index}.product_id`, {
+          type: "manual",
+          message: "Seleccioná un producto.",
+        });
+      }
+
+      if (!quantity) {
+        hasValidationError = true;
+        setError(`items.${index}.quantity`, {
+          type: "manual",
+          message: "La cantidad es obligatoria.",
+        });
+      } else if (!/^[1-9]\d*$/.test(quantity)) {
+        hasValidationError = true;
+        setError(`items.${index}.quantity`, {
+          type: "manual",
+          message: "La cantidad debe ser un entero mayor a 0.",
+        });
+      }
+
+      if (productId) {
+        if (seenProductIds.has(productId)) {
+          hasValidationError = true;
+          setError(`items.${index}.product_id`, {
+            type: "manual",
+            message: "No repitas el mismo producto.",
+          });
+        } else {
+          seenProductIds.add(productId);
+        }
+      }
+
+      if (productId && quantity && /^[1-9]\d*$/.test(quantity)) {
+        normalizedItems.push({ product_id: productId, quantity });
+      }
+    });
+
+    if (hasValidationError || normalizedItems.length === 0) {
+      return;
+    }
+
+    const normalizedMessage = formValues.message.trim();
+
     try {
       await productRequestsApi.create({
         subject: formValues.subject,
-        message: formValues.message,
+        message: normalizedMessage || undefined,
+        items: normalizedItems,
       });
       setRequestSuccessMessage("Solicitud enviada. El owner recibirá una notificación por email.");
-      reset();
+      reset({
+        subject: "",
+        message: "",
+        items: [{ product_id: "", quantity: "1" }],
+      });
     } catch (error) {
       setRequestErrorMessage(getApiErrorMessage(error, "No pudimos enviar la solicitud de producto."));
     }
@@ -111,61 +199,134 @@ export function ProductsListPage() {
           <CardHeader>
             <CardTitle className="text-base">Solicitar producto</CardTitle>
             <CardDescription>
-              Enviá una petición al owner con el producto que necesitás incorporar.
+              Seleccioná productos y cantidades para solicitar al owner.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form className="space-y-3" noValidate onSubmit={onSubmitProductRequest}>
-              <div className="space-y-2">
-                <Label htmlFor="product-request-subject">Asunto</Label>
-                <Input
-                  id="product-request-subject"
-                  placeholder="Ej: Agregar harina integral"
-                  {...register("subject", {
-                    required: "El asunto es obligatorio.",
-                    setValueAs: (value: string) => value.trim(),
-                    maxLength: {
-                      value: 255,
-                      message: "El asunto no puede superar los 255 caracteres.",
-                    },
-                  })}
-                />
-                {errors.subject ? (
-                  <p className="text-sm text-destructive">{errors.subject.message}</p>
+            {requestableProducts.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No hay productos activos disponibles para solicitar en este momento.
+              </p>
+            ) : (
+              <form className="space-y-4" noValidate onSubmit={onSubmitProductRequest}>
+                <div className="space-y-2">
+                  <Label htmlFor="product-request-subject">Asunto</Label>
+                  <Input
+                    id="product-request-subject"
+                    placeholder="Ej: Pedido semanal de stock"
+                    {...register("subject", {
+                      required: "El asunto es obligatorio.",
+                      setValueAs: (value: string) => value.trim(),
+                      maxLength: {
+                        value: 255,
+                        message: "El asunto no puede superar los 255 caracteres.",
+                      },
+                    })}
+                  />
+                  {errors.subject ? (
+                    <p className="text-sm text-destructive">{errors.subject.message}</p>
+                  ) : null}
+                </div>
+
+                <div className="space-y-3 rounded-xl border border-border/80 bg-secondary/35 p-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium">Productos solicitados</h3>
+                    <Button onClick={addRequestItemRow} size="sm" type="button" variant="outline">
+                      Agregar línea
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {fields.map((field, index) => (
+                      <div
+                        key={field.id}
+                        className="grid gap-2 rounded-lg border border-border/80 bg-card/75 p-3 sm:grid-cols-[1fr_140px_auto] sm:items-end"
+                      >
+                        <div className="space-y-2">
+                          <Label htmlFor={`items.${index}.product_id`}>Producto</Label>
+                          <Select
+                            id={`items.${index}.product_id`}
+                            {...register(`items.${index}.product_id`, {
+                              required: "Seleccioná un producto.",
+                            })}
+                          >
+                            <option value="">Seleccionar producto</option>
+                            {requestableProducts.map((product) => (
+                              <option key={product.id} value={product.id}>
+                                {product.name}
+                              </option>
+                            ))}
+                          </Select>
+                          {errors.items?.[index]?.product_id ? (
+                            <p className="text-sm text-destructive">
+                              {errors.items[index]?.product_id?.message}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor={`items.${index}.quantity`}>Cantidad</Label>
+                          <Input
+                            id={`items.${index}.quantity`}
+                            inputMode="numeric"
+                            min="1"
+                            placeholder="1"
+                            step="1"
+                            type="number"
+                            {...register(`items.${index}.quantity`, {
+                              required: "La cantidad es obligatoria.",
+                              setValueAs: (value: string) => value.trim(),
+                            })}
+                          />
+                          {errors.items?.[index]?.quantity ? (
+                            <p className="text-sm text-destructive">
+                              {errors.items[index]?.quantity?.message}
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <Button
+                          className="sm:self-end"
+                          disabled={fields.length === 1}
+                          onClick={() => removeRequestItemRow(index)}
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                        >
+                          Quitar
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="product-request-message">Detalle adicional (opcional)</Label>
+                  <Textarea
+                    id="product-request-message"
+                    placeholder="Información adicional para el owner (horarios, urgencia, etc.)."
+                    rows={4}
+                    {...register("message", {
+                      setValueAs: (value: string) => value.trim(),
+                    })}
+                  />
+                  {errors.message ? (
+                    <p className="text-sm text-destructive">{errors.message.message}</p>
+                  ) : null}
+                </div>
+
+                {requestSuccessMessage ? (
+                  <p className="feedback-success">{requestSuccessMessage}</p>
                 ) : null}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="product-request-message">Detalle</Label>
-                <Textarea
-                  id="product-request-message"
-                  placeholder="Contá qué producto necesitás y cualquier detalle relevante."
-                  rows={4}
-                  {...register("message", {
-                    required: "El detalle es obligatorio.",
-                    setValueAs: (value: string) => value.trim(),
-                    minLength: {
-                      value: 10,
-                      message: "El detalle debe tener al menos 10 caracteres.",
-                    },
-                  })}
-                />
-                {errors.message ? (
-                  <p className="text-sm text-destructive">{errors.message.message}</p>
+                {requestErrorMessage ? (
+                  <p className="feedback-error">{requestErrorMessage}</p>
                 ) : null}
-              </div>
 
-              {requestSuccessMessage ? (
-                <p className="feedback-success">{requestSuccessMessage}</p>
-              ) : null}
-              {requestErrorMessage ? (
-                <p className="feedback-error">{requestErrorMessage}</p>
-              ) : null}
-
-              <Button className="w-full sm:w-auto" disabled={isSubmitting} type="submit">
-                {isSubmitting ? "Enviando..." : "Enviar solicitud"}
-              </Button>
-            </form>
+                <Button className="w-full sm:w-auto" disabled={isSubmitting} type="submit">
+                  {isSubmitting ? "Enviando..." : "Enviar solicitud"}
+                </Button>
+              </form>
+            )}
           </CardContent>
         </Card>
       ) : null}

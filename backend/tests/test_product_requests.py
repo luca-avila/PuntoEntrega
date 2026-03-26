@@ -15,6 +15,7 @@ from tests.test_locations import (
     setup_authenticated_user_with_organization,
     setup_member_user_in_organization,
 )
+from tests.test_products import build_product_payload
 
 
 @pytest.fixture(autouse=True)
@@ -42,15 +43,21 @@ async def setup_owner_and_member(
     client: AsyncClient,
     owner_email: str,
     member_email: str,
-) -> tuple[str, str, uuid.UUID]:
+) -> tuple[str, str, uuid.UUID, uuid.UUID]:
     organization_payload = await setup_authenticated_user_with_organization(client, owner_email)
     organization_id = uuid.UUID(organization_payload["id"])
+    product_payload = build_product_payload()
+    owner_local_part = owner_email.split("@", maxsplit=1)[0]
+    product_payload["name"] = f"Producto {owner_local_part}"
+    create_product_response = await client.post("/products", json=product_payload)
+    assert create_product_response.status_code == 201
+    product_id = uuid.UUID(create_product_response.json()["id"])
 
     await logout(client)
     await setup_member_user_in_organization(client, member_email, organization_id)
     await logout(client)
 
-    return owner_email, member_email, organization_id
+    return owner_email, member_email, organization_id, product_id
 
 
 async def set_user_verified(email: str, is_verified: bool) -> None:
@@ -98,6 +105,7 @@ class TestProductRequestsAuth:
             json={
                 "subject": "Necesitamos un producto",
                 "message": "Necesitamos incorporar este producto al catalogo.",
+                "items": [{"product_id": str(uuid.uuid4()), "quantity": "1"}],
             },
         )
 
@@ -107,7 +115,7 @@ class TestProductRequestsAuth:
 
 class TestProductRequestsPermissions:
     async def test_member_can_create_product_request(self, client: AsyncClient):
-        owner_email, member_email, organization_id = await setup_owner_and_member(
+        owner_email, member_email, organization_id, product_id = await setup_owner_and_member(
             client,
             owner_email="pr-owner-create@example.com",
             member_email="pr-member-create@example.com",
@@ -119,6 +127,7 @@ class TestProductRequestsPermissions:
             json={
                 "subject": "Nuevo producto para stock",
                 "message": "Necesitamos sumar este producto para la campaña de abril.",
+                "items": [{"product_id": str(product_id), "quantity": "3"}],
             },
         )
 
@@ -127,6 +136,8 @@ class TestProductRequestsPermissions:
         assert payload["organization_id"] == str(organization_id)
         assert payload["subject"] == "Nuevo producto para stock"
         assert payload["message"] == "Necesitamos sumar este producto para la campaña de abril."
+        assert payload["items"][0]["product_id"] == str(product_id)
+        assert payload["items"][0]["quantity"] == "3.00"
         assert payload["email_status"] == ProductRequestEmailStatus.PENDING.value
         assert payload["email_attempts"] == 0
 
@@ -144,19 +155,23 @@ class TestProductRequestsPermissions:
     async def test_owner_cannot_create_product_request(self, client: AsyncClient):
         owner_email = "pr-owner-forbidden-create@example.com"
         await setup_authenticated_user_with_organization(client, owner_email)
+        create_product_response = await client.post("/products", json=build_product_payload())
+        assert create_product_response.status_code == 201
+        product_id = create_product_response.json()["id"]
 
         response = await client.post(
             "/product-requests",
             json={
                 "subject": "Intento owner",
                 "message": "Este owner no deberia poder crear solicitudes.",
+                "items": [{"product_id": product_id, "quantity": "1"}],
             },
         )
 
         assert response.status_code == 403
 
     async def test_owner_can_list_product_requests_for_organization(self, client: AsyncClient):
-        owner_email, member_email, organization_id = await setup_owner_and_member(
+        owner_email, member_email, organization_id, product_id = await setup_owner_and_member(
             client,
             owner_email="pr-owner-list@example.com",
             member_email="pr-member-list@example.com",
@@ -168,6 +183,7 @@ class TestProductRequestsPermissions:
             json={
                 "subject": "Solicitud uno",
                 "message": "Detalle de solicitud uno para revisar con compras.",
+                "items": [{"product_id": str(product_id), "quantity": "1"}],
             },
         )
         second_response = await client.post(
@@ -175,6 +191,7 @@ class TestProductRequestsPermissions:
             json={
                 "subject": "Solicitud dos",
                 "message": "Detalle de solicitud dos para revisar con compras.",
+                "items": [{"product_id": str(product_id), "quantity": "2"}],
             },
         )
         assert first_response.status_code == 201
@@ -195,7 +212,7 @@ class TestProductRequestsPermissions:
         assert {item["organization_id"] for item in payload} == {str(organization_id)}
 
     async def test_member_cannot_list_product_requests(self, client: AsyncClient):
-        _owner_email, member_email, _organization_id = await setup_owner_and_member(
+        _owner_email, member_email, _organization_id, _product_id = await setup_owner_and_member(
             client,
             owner_email="pr-owner-member-list-forbidden@example.com",
             member_email="pr-member-list-forbidden@example.com",
@@ -221,7 +238,7 @@ class TestProductRequestsEmailStatus:
             _noop_background,
         )
 
-        _owner_email, member_email, _organization_id = await setup_owner_and_member(
+        _owner_email, member_email, _organization_id, product_id = await setup_owner_and_member(
             client,
             owner_email="pr-owner-pending@example.com",
             member_email="pr-member-pending@example.com",
@@ -233,6 +250,7 @@ class TestProductRequestsEmailStatus:
             json={
                 "subject": "Estado pending",
                 "message": "Esta solicitud se debe guardar en pending antes del envio.",
+                "items": [{"product_id": str(product_id), "quantity": "1"}],
             },
         )
         assert response.status_code == 201
@@ -264,7 +282,7 @@ class TestProductRequestsEmailStatus:
         )
         monkeypatch.setattr("features.product_requests.service.EMAIL_SEND_MAX_ATTEMPTS", 2)
 
-        _owner_email, member_email, _organization_id = await setup_owner_and_member(
+        _owner_email, member_email, _organization_id, product_id = await setup_owner_and_member(
             client,
             owner_email="pr-owner-email-fail@example.com",
             member_email="pr-member-email-fail@example.com",
@@ -276,6 +294,7 @@ class TestProductRequestsEmailStatus:
             json={
                 "subject": "Falla de email",
                 "message": "Esta solicitud debe quedar registrada aunque falle el envio.",
+                "items": [{"product_id": str(product_id), "quantity": "4"}],
             },
         )
         assert response.status_code == 201
@@ -295,7 +314,7 @@ class TestProductRequestsEmailStatus:
         assert persisted_request.email_status == ProductRequestEmailStatus.FAILED
 
     async def test_non_sendable_owner_marks_request_as_failed(self, client: AsyncClient):
-        owner_email, member_email, _organization_id = await setup_owner_and_member(
+        owner_email, member_email, _organization_id, product_id = await setup_owner_and_member(
             client,
             owner_email="pr-owner-not-sendable@example.com",
             member_email="pr-member-not-sendable@example.com",
@@ -308,6 +327,7 @@ class TestProductRequestsEmailStatus:
             json={
                 "subject": "Owner no enviable",
                 "message": "Si owner no es verificable, la solicitud debe terminar en failed.",
+                "items": [{"product_id": str(product_id), "quantity": "2"}],
             },
         )
         assert response.status_code == 201
@@ -323,12 +343,12 @@ class TestProductRequestsEmailStatus:
 
 class TestProductRequestsIsolation:
     async def test_owner_list_is_isolated_by_organization(self, client: AsyncClient):
-        owner_a, member_a, _organization_a_id = await setup_owner_and_member(
+        owner_a, member_a, _organization_a_id, product_a_id = await setup_owner_and_member(
             client,
             owner_email="pr-owner-a@example.com",
             member_email="pr-member-a@example.com",
         )
-        owner_b, member_b, _organization_b_id = await setup_owner_and_member(
+        owner_b, member_b, _organization_b_id, product_b_id = await setup_owner_and_member(
             client,
             owner_email="pr-owner-b@example.com",
             member_email="pr-member-b@example.com",
@@ -340,6 +360,7 @@ class TestProductRequestsIsolation:
             json={
                 "subject": "Solicitud org A",
                 "message": "Solicitud creada por member A para su organizacion.",
+                "items": [{"product_id": str(product_a_id), "quantity": "5"}],
             },
         )
         assert create_a_response.status_code == 201
@@ -352,6 +373,7 @@ class TestProductRequestsIsolation:
             json={
                 "subject": "Solicitud org B",
                 "message": "Solicitud creada por member B para su organizacion.",
+                "items": [{"product_id": str(product_b_id), "quantity": "6"}],
             },
         )
         assert create_b_response.status_code == 201

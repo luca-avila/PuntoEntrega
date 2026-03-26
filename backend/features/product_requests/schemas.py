@@ -1,14 +1,29 @@
 import uuid
 from datetime import datetime
+from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from features.product_requests.models import ProductRequestEmailStatus
 
 
+class ProductRequestItemCreate(BaseModel):
+    product_id: uuid.UUID
+    quantity: Decimal = Field(gt=0)
+
+
+class ProductRequestItemRead(BaseModel):
+    id: uuid.UUID
+    product_id: uuid.UUID
+    quantity: Decimal
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class ProductRequestCreate(BaseModel):
     subject: str = Field(min_length=1, max_length=255)
-    message: str = Field(min_length=10)
+    message: str | None = None
+    items: list[ProductRequestItemCreate] = Field(min_length=1)
 
     @field_validator("subject")
     @classmethod
@@ -20,13 +35,22 @@ class ProductRequestCreate(BaseModel):
 
     @field_validator("message")
     @classmethod
-    def normalize_message(cls, value: str) -> str:
+    def normalize_message(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         normalized = value.strip()
         if not normalized:
-            raise ValueError("El mensaje es obligatorio.")
-        if len(normalized) < 10:
-            raise ValueError("El mensaje debe tener al menos 10 caracteres.")
+            return None
         return normalized
+
+    @model_validator(mode="after")
+    def validate_no_duplicate_products(self) -> "ProductRequestCreate":
+        seen_product_ids: set[uuid.UUID] = set()
+        for item in self.items:
+            if item.product_id in seen_product_ids:
+                raise ValueError("No repitas el mismo producto en varias líneas.")
+            seen_product_ids.add(item.product_id)
+        return self
 
 
 class ProductRequestRead(BaseModel):
@@ -35,7 +59,8 @@ class ProductRequestRead(BaseModel):
     requested_by_user_id: uuid.UUID
     requested_for_location_id: uuid.UUID | None
     subject: str
-    message: str
+    message: str | None
+    items: list[ProductRequestItemRead]
     email_status: ProductRequestEmailStatus
     email_attempts: int
     email_last_error: str | None

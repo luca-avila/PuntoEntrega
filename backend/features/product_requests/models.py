@@ -1,16 +1,20 @@
 import enum
 import uuid
 from datetime import datetime
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    CheckConstraint,
     DateTime,
     Enum as SAEnum,
     ForeignKey,
     ForeignKeyConstraint,
     Integer,
+    Numeric,
     String,
     Text,
+    UniqueConstraint,
     Uuid,
     func,
     text,
@@ -23,6 +27,7 @@ if TYPE_CHECKING:
     from features.auth.models import User
     from features.locations.models import Location
     from features.organizations.models import Organization
+    from features.products.models import Product
 
 
 class ProductRequestEmailStatus(str, enum.Enum):
@@ -64,7 +69,7 @@ class ProductRequest(Base):
         index=True,
     )
     subject: Mapped[str] = mapped_column(String(255), nullable=False)
-    message: Mapped[str] = mapped_column(Text, nullable=False)
+    message: Mapped[str | None] = mapped_column(Text, nullable=True)
     email_status: Mapped[ProductRequestEmailStatus] = mapped_column(
         SAEnum(
             ProductRequestEmailStatus,
@@ -102,3 +107,41 @@ class ProductRequest(Base):
     organization: Mapped["Organization"] = relationship(overlaps="requested_for_location")
     requested_by_user: Mapped["User"] = relationship()
     requested_for_location: Mapped["Location | None"] = relationship(overlaps="organization")
+    items: Mapped[list["ProductRequestItem"]] = relationship(
+        back_populates="product_request",
+        cascade="all, delete-orphan",
+    )
+
+
+class ProductRequestItem(Base):
+    __tablename__ = "product_request_items"
+    __table_args__ = (
+        CheckConstraint("quantity > 0", name="ck_product_request_items_quantity_gt_zero"),
+        UniqueConstraint(
+            "product_request_id",
+            "product_id",
+            name="uq_product_request_items_request_product",
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    product_request_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("product_requests.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    product_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid(as_uuid=True),
+        ForeignKey("products.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    quantity: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+
+    product_request: Mapped["ProductRequest"] = relationship(back_populates="items")
+    product: Mapped["Product"] = relationship(back_populates="product_request_items")
