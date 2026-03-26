@@ -235,26 +235,26 @@ export function ProductsListPage() {
       ) : null}
 
       {!isLoading && !errorMessage && filteredProducts.length > 0 ? (
-        <div className="grid gap-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredProducts.map((product) => (
-            <Card key={product.id}>
-              <CardHeader>
-                <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-                  {product.name}
+            <Card key={product.id} className="flex min-h-[180px] flex-col">
+              <CardHeader className="space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <CardTitle className="text-base leading-tight">{product.name}</CardTitle>
                   <span
                     className={
                       product.is_active
-                        ? "status-chip status-chip-success"
-                        : "status-chip status-chip-muted"
+                        ? "status-chip status-chip-success shrink-0"
+                        : "status-chip status-chip-muted shrink-0"
                     }
                   >
                     {product.is_active ? "Activo" : "Inactivo"}
                   </span>
-                </CardTitle>
+                </div>
                 <CardDescription>{product.description || "Sin descripción"}</CardDescription>
               </CardHeader>
               {isOwner ? (
-                <CardContent className="flex justify-end">
+                <CardContent className="mt-auto flex justify-end pt-0">
                   <Button onClick={() => navigate(`/productos/${product.id}/editar`)} variant="outline">
                     Editar
                   </Button>
