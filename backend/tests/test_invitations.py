@@ -477,6 +477,10 @@ class TestOrganizationInvitations:
             json={"token": token},
         )
         assert mismatch_response.status_code == 409
+        assert (
+            mismatch_response.json()["detail"]
+            == "El email autenticado no coincide con la invitación. Cerrá sesión y volvé a abrir esta invitación para continuar con el email invitado (podés ingresar con una cuenta existente o crear una nueva)."
+        )
 
         await logout(client)
         await setup_authenticated_user_without_organization(client, invited_email)

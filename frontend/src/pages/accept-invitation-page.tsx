@@ -43,6 +43,8 @@ export function AcceptInvitationPage() {
   const [acceptError, setAcceptError] = useState<string | null>(null);
   const [acceptSuccessMessage, setAcceptSuccessMessage] = useState<string | null>(null);
   const [isAcceptingAuthenticated, setIsAcceptingAuthenticated] = useState(false);
+  const [acceptedWithNewAccount, setAcceptedWithNewAccount] = useState(false);
+  const [acceptedInvitedEmail, setAcceptedInvitedEmail] = useState<string | null>(null);
 
   const {
     register,
@@ -101,6 +103,11 @@ export function AcceptInvitationPage() {
     void loadAcceptInfo();
   }, [loadAcceptInfo]);
 
+  useEffect(() => {
+    setAcceptedWithNewAccount(false);
+    setAcceptedInvitedEmail(null);
+  }, [token]);
+
   const loginRedirectPath = useMemo(() => {
     const currentPath = `/aceptar-invitacion${token ? `?token=${encodeURIComponent(token)}` : ""}`;
     return `/iniciar-sesion?next=${encodeURIComponent(currentPath)}`;
@@ -119,14 +126,15 @@ export function AcceptInvitationPage() {
     }
 
     try {
-      await invitationsApi.acceptNewAccount({
+      const acceptedInvitation = await invitationsApi.acceptNewAccount({
         token,
         password: formValues.password,
         password_confirm: formValues.passwordConfirm,
       });
+      setAcceptedWithNewAccount(true);
+      setAcceptedInvitedEmail(acceptedInvitation.invited_email);
       setAcceptSuccessMessage("Invitación aceptada. Ahora podés iniciar sesión con tu cuenta.");
       reset();
-      await loadAcceptInfo();
     } catch (error) {
       setAcceptError(
         getApiErrorMessage(error, "No pudimos aceptar la invitación con una cuenta nueva."),
@@ -175,26 +183,48 @@ export function AcceptInvitationPage() {
   const invitedUserExists = info?.invited_user_exists === true;
   const showExistingAccountCard =
     isValid && (status === "authenticated" || status === "loading" || invitedUserExists);
+  const showPostAcceptNewAccountState = acceptedWithNewAccount;
 
   return (
     <div className="auth-shell">
       <div className="w-full max-w-xl space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle>{statusTitleMap[info?.status ?? "invalid"]}</CardTitle>
-            <CardDescription>{statusDescriptionMap[info?.status ?? "invalid"]}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm">
-            <p>
-              <span className="font-medium">Organización:</span>{" "}
-              {info?.organization_name ?? "-"}
-            </p>
-            <p>
-              <span className="font-medium">Email invitado:</span>{" "}
-              {info?.invited_email ?? "-"}
-            </p>
-          </CardContent>
-        </Card>
+        {showPostAcceptNewAccountState ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Invitación aceptada</CardTitle>
+              <CardDescription>
+                Tu cuenta se creó y ya quedaste unido a la organización.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <p>
+                <span className="font-medium">Organización:</span>{" "}
+                {info?.organization_name ?? "-"}
+              </p>
+              <p>
+                <span className="font-medium">Email invitado:</span>{" "}
+                {acceptedInvitedEmail ?? info?.invited_email ?? "-"}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader>
+              <CardTitle>{statusTitleMap[info?.status ?? "invalid"]}</CardTitle>
+              <CardDescription>{statusDescriptionMap[info?.status ?? "invalid"]}</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <p>
+                <span className="font-medium">Organización:</span>{" "}
+                {info?.organization_name ?? "-"}
+              </p>
+              <p>
+                <span className="font-medium">Email invitado:</span>{" "}
+                {info?.invited_email ?? "-"}
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {acceptSuccessMessage ? (
           <p className="feedback-success">{acceptSuccessMessage}</p>
@@ -203,7 +233,15 @@ export function AcceptInvitationPage() {
           <p className="feedback-error">{acceptError}</p>
         ) : null}
 
-        {isValid ? (
+        {showPostAcceptNewAccountState ? (
+          <Card>
+            <CardContent className="p-6">
+              <Button className="w-full" onClick={() => navigate("/iniciar-sesion")}>
+                Volver a iniciar sesión
+              </Button>
+            </CardContent>
+          </Card>
+        ) : isValid ? (
           <>
             {showExistingAccountCard ? (
               <Card>

@@ -426,7 +426,11 @@ async def accept_invitation_authenticated(
     if normalized_current_user_email != invitation.invited_email:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="El email autenticado no coincide con la invitación.",
+            detail=(
+                "El email autenticado no coincide con la invitación. "
+                "Cerrá sesión y volvé a abrir esta invitación para continuar con el email invitado "
+                "(podés ingresar con una cuenta existente o crear una nueva)."
+            ),
         )
 
     user = await session.get(User, current_user_id)
