@@ -12,6 +12,7 @@ EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 
 class OrganizationInvitationCreate(BaseModel):
     email: str = Field(max_length=320)
+    location_id: uuid.UUID
 
     @field_validator("email")
     @classmethod
@@ -29,6 +30,7 @@ class OrganizationInvitationRead(BaseModel):
     organization_id: uuid.UUID
     invited_email: str
     invited_by_user_id: uuid.UUID
+    location_id: uuid.UUID | None
     status: InvitationStatus
     expires_at: datetime
     accepted_at: datetime | None
@@ -52,6 +54,7 @@ class OrganizationInvitationAcceptInfoRead(BaseModel):
     invited_email: str | None = None
     organization_id: uuid.UUID | None = None
     organization_name: str | None = None
+    location_id: uuid.UUID | None = None
     expires_at: datetime | None = None
 
 

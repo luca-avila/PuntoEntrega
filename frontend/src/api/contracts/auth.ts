@@ -4,7 +4,6 @@ export interface SessionUser {
   is_active: boolean;
   is_superuser: boolean;
   is_verified: boolean;
-  organization_id: string | null;
 }
 
 export interface LoginRequest {

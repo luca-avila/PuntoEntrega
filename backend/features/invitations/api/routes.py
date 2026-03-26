@@ -43,6 +43,7 @@ async def create_organization_invitation(
         organization_name=context.organization.name,
         invited_by_user_id=context.user.id,
         invited_email=payload.email,
+        invited_location_id=payload.location_id,
     )
 
 

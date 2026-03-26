@@ -13,7 +13,6 @@ const ownerNavigationItems = [
 
 const memberNavigationItems = [
   { to: "/entregas", label: "Historial" },
-  { to: "/ubicaciones", label: "Ubicaciones" },
   { to: "/productos", label: "Solicitar productos" },
   { to: "/", label: "Inicio" },
 ];
@@ -24,10 +23,10 @@ const noOrganizationNavigationItems = [
 ];
 
 export function ProtectedLayout() {
-  const { user, isOwner, logout } = useAuth();
+  const { user, membership, isOwner, logout } = useAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const location = useLocation();
-  const hasOrganization = Boolean(user?.organization_id);
+  const hasOrganization = Boolean(membership?.organization_id);
   const isHistoryActive =
     location.pathname === "/entregas" ||
     (location.pathname.startsWith("/entregas/") &&

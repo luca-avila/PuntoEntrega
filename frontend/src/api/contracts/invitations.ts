@@ -8,6 +8,7 @@ export type OrganizationInvitationStatus =
 
 export interface OrganizationInvitationCreateRequest {
   email: string;
+  location_id: UUID;
 }
 
 export interface OrganizationInvitationRead {
@@ -15,6 +16,7 @@ export interface OrganizationInvitationRead {
   organization_id: UUID;
   invited_email: string;
   invited_by_user_id: UUID;
+  location_id: UUID | null;
   status: OrganizationInvitationStatus;
   expires_at: ISODateTime;
   accepted_at: ISODateTime | null;
@@ -35,6 +37,7 @@ export interface OrganizationInvitationAcceptInfoRead {
   invited_email: string | null;
   organization_id: UUID | null;
   organization_name: string | null;
+  location_id: UUID | null;
   expires_at: ISODateTime | null;
 }
 

@@ -3,13 +3,25 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum as SAEnum, ForeignKey, Integer, String, Text, Uuid, func, text
+from sqlalchemy import (
+    DateTime,
+    Enum as SAEnum,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Integer,
+    String,
+    Text,
+    Uuid,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from features.auth.models import Base
 
 if TYPE_CHECKING:
     from features.auth.models import User
+    from features.locations.models import Location
     from features.organizations.models import Organization
 
 
@@ -21,6 +33,14 @@ class ProductRequestEmailStatus(str, enum.Enum):
 
 class ProductRequest(Base):
     __tablename__ = "product_requests"
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["organization_id", "requested_for_location_id"],
+            ["locations.organization_id", "locations.id"],
+            name="fk_product_requests_organization_requested_for_location",
+            ondelete="RESTRICT",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
@@ -34,9 +54,13 @@ class ProductRequest(Base):
         index=True,
     )
     requested_by_user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid(as_uuid=True),
         ForeignKey("user.id", ondelete="RESTRICT"),
         nullable=False,
+        index=True,
+    )
+    requested_for_location_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid(as_uuid=True),
+        nullable=True,
         index=True,
     )
     subject: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -75,5 +99,6 @@ class ProductRequest(Base):
         onupdate=func.now(),
     )
 
-    organization: Mapped["Organization"] = relationship()
+    organization: Mapped["Organization"] = relationship(overlaps="requested_for_location")
     requested_by_user: Mapped["User"] = relationship()
+    requested_for_location: Mapped["Location | None"] = relationship(overlaps="organization")

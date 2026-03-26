@@ -1,9 +1,10 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.db import get_async_session
 from features.organizations.service import (
     OrganizationUserContext,
+    get_member_assigned_location_id,
     require_organization_member,
     require_organization_owner,
 )
@@ -28,10 +29,21 @@ async def create_product_request_endpoint(
     context: OrganizationUserContext = Depends(require_organization_member),
     session: AsyncSession = Depends(get_async_session),
 ):
+    member_location_id = await get_member_assigned_location_id(
+        session=session,
+        context=context,
+    )
+    if member_location_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El miembro no tiene una ubicación asignada.",
+        )
+
     product_request = await create_product_request(
         session=session,
         organization_id=context.organization.id,
         requested_by_user_id=context.user.id,
+        requested_for_location_id=member_location_id,
         subject=payload.subject,
         message=payload.message,
     )

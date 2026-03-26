@@ -1,4 +1,8 @@
-import type { OrganizationCreate, OrganizationRead } from "@/api/contracts/organizations";
+import type {
+  OrganizationCreate,
+  OrganizationMembershipCurrentRead,
+  OrganizationRead,
+} from "@/api/contracts";
 import { apiRequest } from "@/api/http-client";
 
 export const organizationsApi = {
@@ -14,5 +18,9 @@ export const organizationsApi = {
 
   getCurrent(): Promise<OrganizationRead> {
     return apiRequest<OrganizationRead>("/organizations/current");
+  },
+
+  getCurrentMembership(): Promise<OrganizationMembershipCurrentRead> {
+    return apiRequest<OrganizationMembershipCurrentRead>("/organization-memberships/current");
   },
 };

@@ -16,7 +16,7 @@ interface OrganizationOnboardingFormValues {
 export function OrganizationOnboardingPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { status, user, refreshSession } = useAuth();
+  const { status, membership, refreshSession } = useAuth();
   const [submitError, setSubmitError] = useState<string | null>(null);
   const fromState = (
     location.state as
@@ -45,10 +45,10 @@ export function OrganizationOnboardingPage() {
   });
 
   useEffect(() => {
-    if (status === "authenticated" && user?.organization_id) {
+    if (status === "authenticated" && membership?.organization_id) {
       navigate(redirectTarget, { replace: true });
     }
-  }, [status, user, navigate, redirectTarget]);
+  }, [status, membership, navigate, redirectTarget]);
 
   const onSubmit = handleSubmit(async (formValues) => {
     setSubmitError(null);

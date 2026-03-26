@@ -63,14 +63,15 @@ export function AcceptInvitationPage() {
     setAcceptSuccessMessage(null);
 
     if (!token) {
-      setInvitationInfo({
-        status: "invalid",
-        is_valid: false,
-        invited_email: null,
-        organization_id: null,
-        organization_name: null,
-        expires_at: null,
-      });
+        setInvitationInfo({
+          status: "invalid",
+          is_valid: false,
+          invited_email: null,
+          organization_id: null,
+          organization_name: null,
+          location_id: null,
+          expires_at: null,
+        });
       setIsLoadingInfo(false);
       return;
     }
@@ -86,6 +87,7 @@ export function AcceptInvitationPage() {
         invited_email: null,
         organization_id: null,
         organization_name: null,
+        location_id: null,
         expires_at: null,
       });
     } finally {

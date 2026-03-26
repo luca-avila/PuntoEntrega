@@ -39,9 +39,13 @@ export function DeliveryDetailPage() {
       const record = await deliveriesApi.getById(deliveryId);
       setDelivery(record);
 
+      const productRecordsPromise = productsApi.list();
+      const locationRecordPromise = isOwner
+        ? locationsApi.getById(record.location_id)
+        : Promise.resolve(null);
       const [locationRecord, productRecords] = await Promise.all([
-        locationsApi.getById(record.location_id),
-        productsApi.list(),
+        locationRecordPromise,
+        productRecordsPromise,
       ]);
 
       setLocation(locationRecord);
@@ -53,7 +57,7 @@ export function DeliveryDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [deliveryId]);
+  }, [deliveryId, isOwner]);
 
   useEffect(() => {
     void loadDeliveryDetail();
@@ -126,7 +130,7 @@ export function DeliveryDetailPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex flex-wrap items-center gap-2 text-lg">
-            {location?.name ?? "Ubicación"}
+            {location?.name ?? delivery.location_name ?? "Ubicación"}
             <span
               className={`status-chip ${getDeliveryEmailStatusClassName(
                 delivery.email_status,
@@ -135,7 +139,7 @@ export function DeliveryDetailPage() {
               Email: {getDeliveryEmailStatusLabel(delivery.email_status)}
             </span>
           </CardTitle>
-          <CardDescription>{location?.address ?? "Sin dirección"}</CardDescription>
+          <CardDescription>{location?.address ?? delivery.location_address ?? "Sin dirección"}</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 text-sm sm:grid-cols-2">
           <div>

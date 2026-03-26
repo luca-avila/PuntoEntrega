@@ -34,6 +34,7 @@ async def list_deliveries_for_organization(
     session: AsyncSession,
     organization_id: uuid.UUID,
     filters: DeliveryListFilters,
+    scoped_location_id: uuid.UUID | None = None,
 ) -> list[Delivery]:
     query: Select[tuple[Delivery]] = (
         select(Delivery)
@@ -42,7 +43,14 @@ async def list_deliveries_for_organization(
         .order_by(Delivery.delivered_at.desc(), Delivery.created_at.desc())
     )
 
-    if filters.location_id is not None:
+    if scoped_location_id is not None:
+        if filters.location_id is not None and filters.location_id != scoped_location_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="El miembro no puede consultar entregas de otra ubicación.",
+            )
+        query = query.where(Delivery.location_id == scoped_location_id)
+    elif filters.location_id is not None:
         query = query.where(Delivery.location_id == filters.location_id)
     if filters.delivered_from is not None:
         query = query.where(Delivery.delivered_at >= filters.delivered_from)
@@ -50,7 +58,11 @@ async def list_deliveries_for_organization(
         query = query.where(Delivery.delivered_at <= filters.delivered_to)
 
     result = await session.execute(query)
-    return list(result.scalars().all())
+    deliveries = list(result.scalars().all())
+    for delivery in deliveries:
+        setattr(delivery, "location_name", delivery.location.name if delivery.location else None)
+        setattr(delivery, "location_address", delivery.location.address if delivery.location else None)
+    return deliveries
 
 
 async def _update_email_status(
@@ -113,8 +125,9 @@ async def get_delivery_for_organization(
     session: AsyncSession,
     organization_id: uuid.UUID,
     delivery_id: uuid.UUID,
+    scoped_location_id: uuid.UUID | None = None,
 ) -> Delivery:
-    result = await session.execute(
+    query = (
         select(Delivery)
         .where(
             Delivery.id == delivery_id,
@@ -122,12 +135,18 @@ async def get_delivery_for_organization(
         )
         .options(*_delivery_load_options())
     )
+    if scoped_location_id is not None:
+        query = query.where(Delivery.location_id == scoped_location_id)
+
+    result = await session.execute(query)
     delivery = result.scalar_one_or_none()
     if delivery is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Entrega no encontrada.",
         )
+    setattr(delivery, "location_name", delivery.location.name if delivery.location else None)
+    setattr(delivery, "location_address", delivery.location.address if delivery.location else None)
     return delivery
 
 

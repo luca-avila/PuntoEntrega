@@ -5,5 +5,6 @@ export interface OrganizationMemberRead {
   email: string;
   is_active: boolean;
   is_verified: boolean;
+  location_id: UUID | null;
   created_at: ISODateTime | null;
 }

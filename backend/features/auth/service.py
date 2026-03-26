@@ -125,7 +125,6 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         )
         password = user_dict.pop("password")
         user_dict["hashed_password"] = self.password_helper.hash(password)
-        user_dict["organization_id"] = None
 
         user_db = cast(SQLAlchemyUserDatabase, self.user_db)
         session = user_db.session

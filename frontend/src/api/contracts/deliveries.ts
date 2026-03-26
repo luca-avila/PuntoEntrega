@@ -29,6 +29,8 @@ export interface DeliveryRead {
   id: UUID;
   organization_id: UUID;
   location_id: UUID;
+  location_name: string | null;
+  location_address: string | null;
   delivered_at: ISODateTime;
   payment_method: PaymentMethod;
   payment_notes: string | null;

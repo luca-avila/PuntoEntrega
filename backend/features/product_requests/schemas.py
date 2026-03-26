@@ -33,6 +33,7 @@ class ProductRequestRead(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
     requested_by_user_id: uuid.UUID
+    requested_for_location_id: uuid.UUID | None
     subject: str
     message: str
     email_status: ProductRequestEmailStatus

@@ -71,6 +71,8 @@ class DeliveryRead(BaseModel):
     id: uuid.UUID
     organization_id: uuid.UUID
     location_id: uuid.UUID
+    location_name: str | None = None
+    location_address: str | None = None
     delivered_at: datetime
     payment_method: PaymentMethod
     payment_notes: str | None

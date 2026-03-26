@@ -14,7 +14,6 @@ from features.locations.service import (
 from features.organizations.service import (
     OrganizationUserContext,
     require_organization_owner,
-    require_organization_user,
 )
 
 router = APIRouter()
@@ -22,7 +21,7 @@ router = APIRouter()
 
 @router.get("", response_model=list[LocationRead])
 async def list_locations(
-    context: OrganizationUserContext = Depends(require_organization_user),
+    context: OrganizationUserContext = Depends(require_organization_owner),
     session: AsyncSession = Depends(get_async_session),
 ):
     return await list_locations_for_organization(
@@ -47,7 +46,7 @@ async def create_location(
 @router.get("/{location_id}", response_model=LocationRead)
 async def get_location(
     location_id: uuid.UUID,
-    context: OrganizationUserContext = Depends(require_organization_user),
+    context: OrganizationUserContext = Depends(require_organization_owner),
     session: AsyncSession = Depends(get_async_session),
 ):
     return await get_location_for_organization(

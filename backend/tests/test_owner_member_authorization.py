@@ -158,7 +158,7 @@ class TestOwnerMemberAuthorization:
 
         assert create_delivery_response.status_code == 403
 
-    async def test_owner_and_member_can_list_and_get_resources(self, client: AsyncClient):
+    async def test_owner_and_member_have_scoped_read_access(self, client: AsyncClient):
         owner_email, member_email, _organization_id = await setup_owner_and_member(
             client,
             owner_email="authz-owner-read@example.com",
@@ -167,8 +167,15 @@ class TestOwnerMemberAuthorization:
 
         await login_user(client, owner_email)
         location, product = await create_resources_as_owner(client)
+        members_response = await client.get("/organization-members")
+        assert members_response.status_code == 200
+        members_payload = members_response.json()
+        member_record = next((item for item in members_payload if item["email"] == member_email), None)
+        assert member_record is not None
+        member_location_id = member_record["location_id"]
+        assert member_location_id is not None
 
-        delivery_response = await client.post(
+        owner_delivery_response = await client.post(
             "/deliveries",
             json={
                 "location_id": location["id"],
@@ -178,31 +185,62 @@ class TestOwnerMemberAuthorization:
                 "items": [{"product_id": product["id"], "quantity": "1"}],
             },
         )
-        assert delivery_response.status_code == 201
-        delivery_id = delivery_response.json()["id"]
+        assert owner_delivery_response.status_code == 201
+        owner_delivery_id = owner_delivery_response.json()["id"]
+
+        member_delivery_response = await client.post(
+            "/deliveries",
+            json={
+                "location_id": member_location_id,
+                "delivered_at": datetime.now(UTC).isoformat(),
+                "payment_method": "cash",
+                "summary_recipient_email": "read-resources-member-location@example.com",
+                "items": [{"product_id": product["id"], "quantity": "2"}],
+            },
+        )
+        assert member_delivery_response.status_code == 201
+        member_delivery_id = member_delivery_response.json()["id"]
 
         logout_response = await client.post("/auth/jwt/logout")
         assert logout_response.status_code in (200, 204)
 
-        for email in (owner_email, member_email):
-            await login_user(client, email)
+        await login_user(client, owner_email)
+        owner_products_response = await client.get("/products")
+        owner_product_response = await client.get(f"/products/{product['id']}")
+        owner_locations_response = await client.get("/locations")
+        owner_location_response = await client.get(f"/locations/{location['id']}")
+        owner_deliveries_response = await client.get("/deliveries")
+        owner_delivery_single_response = await client.get(f"/deliveries/{owner_delivery_id}")
 
-            products_response = await client.get("/products")
-            product_response = await client.get(f"/products/{product['id']}")
-            locations_response = await client.get("/locations")
-            location_response = await client.get(f"/locations/{location['id']}")
-            deliveries_response = await client.get("/deliveries")
-            delivery_single_response = await client.get(f"/deliveries/{delivery_id}")
+        assert owner_products_response.status_code == 200
+        assert owner_product_response.status_code == 200
+        assert owner_locations_response.status_code == 200
+        assert owner_location_response.status_code == 200
+        assert owner_deliveries_response.status_code == 200
+        assert owner_delivery_single_response.status_code == 200
 
-            assert products_response.status_code == 200
-            assert product_response.status_code == 200
-            assert locations_response.status_code == 200
-            assert location_response.status_code == 200
-            assert deliveries_response.status_code == 200
-            assert delivery_single_response.status_code == 200
+        logout_response = await client.post("/auth/jwt/logout")
+        assert logout_response.status_code in (200, 204)
 
-            logout_response = await client.post("/auth/jwt/logout")
-            assert logout_response.status_code in (200, 204)
+        await login_user(client, member_email)
+        member_products_response = await client.get("/products")
+        member_product_response = await client.get(f"/products/{product['id']}")
+        member_locations_response = await client.get("/locations")
+        member_location_response = await client.get(f"/locations/{location['id']}")
+        member_deliveries_response = await client.get("/deliveries")
+        member_owner_delivery_response = await client.get(f"/deliveries/{owner_delivery_id}")
+        member_own_delivery_response = await client.get(f"/deliveries/{member_delivery_id}")
+
+        assert member_products_response.status_code == 200
+        assert member_product_response.status_code == 200
+        assert member_locations_response.status_code == 403
+        assert member_location_response.status_code == 403
+        assert member_deliveries_response.status_code == 200
+        member_delivery_ids = {item["id"] for item in member_deliveries_response.json()}
+        assert member_delivery_id in member_delivery_ids
+        assert owner_delivery_id not in member_delivery_ids
+        assert member_owner_delivery_response.status_code == 404
+        assert member_own_delivery_response.status_code == 200
 
     async def test_user_without_organization_gets_403_in_organization_scoped_endpoints(
         self,

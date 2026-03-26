@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from core.db import async_session_maker
 from features.auth.models import User
+from features.organizations.models import MembershipRole, OrganizationMembership
 from features.product_requests.email import send_product_request_email
 from features.product_requests.models import ProductRequest, ProductRequestEmailStatus
 
@@ -50,7 +51,24 @@ async def _get_product_request_or_none(
         .options(
             selectinload(ProductRequest.organization),
             selectinload(ProductRequest.requested_by_user),
+            selectinload(ProductRequest.requested_for_location),
         )
+    )
+    return result.scalar_one_or_none()
+
+
+async def _get_owner_user_for_organization(
+    session: AsyncSession,
+    organization_id: uuid.UUID,
+) -> User | None:
+    result = await session.execute(
+        select(User)
+        .join(OrganizationMembership, OrganizationMembership.user_id == User.id)
+        .where(
+            OrganizationMembership.organization_id == organization_id,
+            OrganizationMembership.role == MembershipRole.OWNER.value,
+        )
+        .limit(1)
     )
     return result.scalar_one_or_none()
 
@@ -86,12 +104,14 @@ async def create_product_request(
     session: AsyncSession,
     organization_id: uuid.UUID,
     requested_by_user_id: uuid.UUID,
+    requested_for_location_id: uuid.UUID,
     subject: str,
     message: str,
 ) -> ProductRequest:
     product_request = ProductRequest(
         organization_id=organization_id,
         requested_by_user_id=requested_by_user_id,
+        requested_for_location_id=requested_for_location_id,
         subject=subject,
         message=message,
         email_status=ProductRequestEmailStatus.PENDING,
@@ -143,7 +163,10 @@ async def send_product_request_email_in_background(
                 )
                 return
 
-            owner = await session.get(User, product_request.organization.owner_user_id)
+            owner = await _get_owner_user_for_organization(
+                session,
+                product_request.organization_id,
+            )
             if (
                 owner is None
                 or not owner.is_active
@@ -164,12 +187,24 @@ async def send_product_request_email_in_background(
                 if product_request.requested_by_user is not None
                 else str(product_request.requested_by_user_id)
             )
+            requested_for_location_name = (
+                product_request.requested_for_location.name
+                if product_request.requested_for_location is not None
+                else "Sin ubicación asignada"
+            )
+            requested_for_location_address = (
+                product_request.requested_for_location.address
+                if product_request.requested_for_location is not None
+                else "Sin dirección"
+            )
 
             try:
                 await send_product_request_email(
                     to_email=owner.email.strip(),
                     organization_name=product_request.organization.name,
                     requester_email=requester_email,
+                    requested_for_location_name=requested_for_location_name,
+                    requested_for_location_address=requested_for_location_address,
                     request_subject=product_request.subject,
                     request_message=product_request.message,
                     requested_at=product_request.created_at,

@@ -25,6 +25,7 @@ const quickAccessItems: QuickAccessItem[] = [
     to: "/ubicaciones",
     title: "Ubicaciones",
     description: "Consultá y administrá puntos de entrega de tu organización.",
+    ownerOnly: true,
   },
   {
     to: "/productos",
@@ -40,8 +41,8 @@ const quickAccessItems: QuickAccessItem[] = [
 ];
 
 export function HomePage() {
-  const { isOwner, user } = useAuth();
-  const hasOrganization = Boolean(user?.organization_id);
+  const { isOwner, membership } = useAuth();
+  const hasOrganization = Boolean(membership?.organization_id);
 
   if (!hasOrganization) {
     return (

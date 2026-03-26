@@ -8,6 +8,7 @@ from sqlalchemy.sql.elements import ColumnElement
 from core.db import async_session_maker
 from features.auth.models import User
 from features.organizations.models import Organization
+from features.organizations.models import MembershipRole, OrganizationMembership
 
 USER_PASSWORD = "StrongPass123!"
 
@@ -57,7 +58,6 @@ class TestOrganizationsOnboarding:
         payload = response.json()
         assert payload["name"] == "Org Principal"
         assert payload["slug"]
-        assert payload["owner_user_id"]
         assert payload["is_active"] is True
 
     async def test_create_organization_assigns_owner_and_user_membership(self, client: AsyncClient):
@@ -72,10 +72,17 @@ class TestOrganizationsOnboarding:
             user_result = await session.execute(select(User).where(User.email == user_email))
             user = user_result.scalar_one()
             organization = await session.get(Organization, organization_id)
+            membership_result = await session.execute(
+                select(OrganizationMembership).where(
+                    OrganizationMembership.organization_id == organization_id,
+                    OrganizationMembership.user_id == user.id,
+                    OrganizationMembership.role == MembershipRole.OWNER.value,
+                )
+            )
+            owner_membership = membership_result.scalar_one_or_none()
 
         assert organization is not None
-        assert organization.owner_user_id == user.id
-        assert user.organization_id == organization.id
+        assert owner_membership is not None
 
     async def test_user_with_organization_cannot_create_another(self, client: AsyncClient):
         user_email = "org-singleton@example.com"
@@ -102,7 +109,6 @@ class TestOrganizationsOnboarding:
         assert payload["id"] == created["id"]
         assert payload["name"] == "Org Current"
         assert payload["slug"] == created["slug"]
-        assert payload["owner_user_id"] == created["owner_user_id"]
 
     async def test_get_current_organization_returns_403_without_organization(self, client: AsyncClient):
         user_email = "org-missing@example.com"

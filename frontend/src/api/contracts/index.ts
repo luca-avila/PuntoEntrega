@@ -4,6 +4,7 @@ export * from "@/api/contracts/deliveries";
 export * from "@/api/contracts/invitations";
 export * from "@/api/contracts/locations";
 export * from "@/api/contracts/organization-members";
+export * from "@/api/contracts/organization-memberships";
 export * from "@/api/contracts/organizations";
 export * from "@/api/contracts/product-requests";
 export * from "@/api/contracts/products";

@@ -10,7 +10,9 @@ from sqlalchemy.sql.elements import ColumnElement
 from core.db import async_session_maker
 from features.auth.models import User
 from features.invitations.models import InvitationStatus, OrganizationInvitation
+from features.organizations.models import MembershipRole, OrganizationMembership
 from tests.test_locations import (
+    build_location_payload,
     assign_user_to_organization,
     login_user,
     setup_authenticated_user_with_organization,
@@ -60,19 +62,35 @@ async def setup_owner_and_member(
     return owner_email, member_email, organization_id
 
 
+async def create_location_for_current_owner(client: AsyncClient, *, name_suffix: str) -> uuid.UUID:
+    payload = build_location_payload()
+    payload["name"] = f"{payload['name']} {name_suffix}".strip()
+    response = await client.post("/locations", json=payload)
+    assert response.status_code == 201
+    return uuid.UUID(response.json()["id"])
+
+
 class TestOrganizationInvitations:
     async def test_owner_can_create_invitation(self, client: AsyncClient, sent_invitation_emails):
         owner_email = "inv-owner-create@example.com"
         await setup_authenticated_user_with_organization(client, owner_email)
+        location_id = await create_location_for_current_owner(
+            client,
+            name_suffix="create-invitation",
+        )
 
         response = await client.post(
             "/organization-invitations",
-            json={"email": "INVITED.USER@example.com"},
+            json={
+                "email": "INVITED.USER@example.com",
+                "location_id": str(location_id),
+            },
         )
 
         assert response.status_code == 201
         payload = response.json()
         assert payload["invited_email"] == "invited.user@example.com"
+        assert payload["location_id"] == str(location_id)
         assert payload["status"] == InvitationStatus.PENDING.value
         assert sent_invitation_emails[0]["to_email"] == "invited.user@example.com"
         assert sent_invitation_emails[0]["token"]
@@ -89,9 +107,16 @@ class TestOrganizationInvitations:
         )
 
         await login_user(client, owner_email)
+        invitation_location_id = await create_location_for_current_owner(
+            client,
+            name_suffix="member-cannot-create",
+        )
         invitation_response = await client.post(
             "/organization-invitations",
-            json={"email": "invitee-protected@example.com"},
+            json={
+                "email": "invitee-protected@example.com",
+                "location_id": str(invitation_location_id),
+            },
         )
         assert invitation_response.status_code == 201
         invitation_id = invitation_response.json()["id"]
@@ -101,7 +126,10 @@ class TestOrganizationInvitations:
 
         create_response = await client.post(
             "/organization-invitations",
-            json={"email": "another@example.com"},
+            json={
+                "email": "another@example.com",
+                "location_id": str(invitation_location_id),
+            },
         )
         list_response = await client.get("/organization-invitations")
         cancel_response = await client.post(f"/organization-invitations/{invitation_id}/cancel")
@@ -115,7 +143,10 @@ class TestOrganizationInvitations:
 
         create_response = await client.post(
             "/organization-invitations",
-            json={"email": "unauth@example.com"},
+            json={
+                "email": "unauth@example.com",
+                "location_id": str(uuid.uuid4()),
+            },
         )
         list_response = await client.get("/organization-invitations")
         cancel_response = await client.post(f"/organization-invitations/{invitation_id}/cancel")
@@ -132,14 +163,24 @@ class TestOrganizationInvitations:
         owner_email = "inv-owner-reuse@example.com"
         organization_payload = await setup_authenticated_user_with_organization(client, owner_email)
         organization_id = uuid.UUID(organization_payload["id"])
+        location_id = await create_location_for_current_owner(
+            client,
+            name_suffix="reuse-pending",
+        )
 
         first_response = await client.post(
             "/organization-invitations",
-            json={"email": "reuse@example.com"},
+            json={
+                "email": "reuse@example.com",
+                "location_id": str(location_id),
+            },
         )
         second_response = await client.post(
             "/organization-invitations",
-            json={"email": "reuse@example.com"},
+            json={
+                "email": "reuse@example.com",
+                "location_id": str(location_id),
+            },
         )
 
         assert first_response.status_code == 201
@@ -162,6 +203,10 @@ class TestOrganizationInvitations:
     async def test_rejects_inviting_user_from_another_organization(self, client: AsyncClient):
         owner_email = "inv-owner-another-org@example.com"
         await setup_authenticated_user_with_organization(client, owner_email)
+        owner_location_id = await create_location_for_current_owner(
+            client,
+            name_suffix="another-org",
+        )
 
         await logout(client)
         target_email = "existing-other-org@example.com"
@@ -172,7 +217,10 @@ class TestOrganizationInvitations:
 
         response = await client.post(
             "/organization-invitations",
-            json={"email": target_email},
+            json={
+                "email": target_email,
+                "location_id": str(owner_location_id),
+            },
         )
 
         assert response.status_code == 409
@@ -185,10 +233,17 @@ class TestOrganizationInvitations:
         )
 
         await login_user(client, owner_email)
+        owner_location_id = await create_location_for_current_owner(
+            client,
+            name_suffix="same-org",
+        )
 
         response = await client.post(
             "/organization-invitations",
-            json={"email": member_email},
+            json={
+                "email": member_email,
+                "location_id": str(owner_location_id),
+            },
         )
 
         assert response.status_code == 409
@@ -196,10 +251,17 @@ class TestOrganizationInvitations:
     async def test_accept_info_reports_valid_for_active_token(self, client: AsyncClient, sent_invitation_emails):
         owner_email = "inv-owner-accept-info-valid@example.com"
         await setup_authenticated_user_with_organization(client, owner_email)
+        location_id = await create_location_for_current_owner(
+            client,
+            name_suffix="accept-info-valid",
+        )
 
         create_response = await client.post(
             "/organization-invitations",
-            json={"email": "accept-info-valid@example.com"},
+            json={
+                "email": "accept-info-valid@example.com",
+                "location_id": str(location_id),
+            },
         )
         assert create_response.status_code == 201
         token = sent_invitation_emails[0]["token"]
@@ -214,6 +276,7 @@ class TestOrganizationInvitations:
         assert payload["is_valid"] is True
         assert payload["status"] == "valid"
         assert payload["invited_email"] == "accept-info-valid@example.com"
+        assert payload["location_id"] == str(location_id)
 
     async def test_accept_info_reports_invalid_expired_cancelled_and_accepted_states(
         self,
@@ -222,6 +285,10 @@ class TestOrganizationInvitations:
     ):
         owner_email = "inv-owner-accept-info-states@example.com"
         await setup_authenticated_user_with_organization(client, owner_email)
+        invitation_location_id = await create_location_for_current_owner(
+            client,
+            name_suffix="accept-info-states",
+        )
 
         invalid_response = await client.get(
             "/organization-invitations/accept-info",
@@ -233,7 +300,10 @@ class TestOrganizationInvitations:
         expired_email = "expired-state@example.com"
         create_expired_response = await client.post(
             "/organization-invitations",
-            json={"email": expired_email},
+            json={
+                "email": expired_email,
+                "location_id": str(invitation_location_id),
+            },
         )
         assert create_expired_response.status_code == 201
         expired_token = sent_invitation_emails[-1]["token"]
@@ -258,7 +328,10 @@ class TestOrganizationInvitations:
         cancelled_email = "cancelled-state@example.com"
         create_cancelled_response = await client.post(
             "/organization-invitations",
-            json={"email": cancelled_email},
+            json={
+                "email": cancelled_email,
+                "location_id": str(invitation_location_id),
+            },
         )
         assert create_cancelled_response.status_code == 201
         cancelled_invitation_id = create_cancelled_response.json()["id"]
@@ -279,7 +352,10 @@ class TestOrganizationInvitations:
         accepted_email = "accepted-state@example.com"
         create_accepted_response = await client.post(
             "/organization-invitations",
-            json={"email": accepted_email},
+            json={
+                "email": accepted_email,
+                "location_id": str(invitation_location_id),
+            },
         )
         assert create_accepted_response.status_code == 201
         accepted_token = sent_invitation_emails[-1]["token"]
@@ -310,10 +386,17 @@ class TestOrganizationInvitations:
         invited_email = "accept-new-user@example.com"
 
         await setup_authenticated_user_with_organization(client, owner_email)
+        location_id = await create_location_for_current_owner(
+            client,
+            name_suffix="accept-new-account",
+        )
 
         create_response = await client.post(
             "/organization-invitations",
-            json={"email": invited_email},
+            json={
+                "email": invited_email,
+                "location_id": str(location_id),
+            },
         )
         assert create_response.status_code == 201
         invitation_id = create_response.json()["id"]
@@ -340,8 +423,17 @@ class TestOrganizationInvitations:
             )
             invited_user = user_result.scalar_one()
             invitation = await session.get(OrganizationInvitation, uuid.UUID(invitation_id))
+            membership_result = await session.execute(
+                select(OrganizationMembership).where(
+                    OrganizationMembership.user_id == invited_user.id,
+                    OrganizationMembership.organization_id == uuid.UUID(organization_id),
+                )
+            )
+            membership = membership_result.scalar_one_or_none()
 
-        assert invited_user.organization_id == uuid.UUID(organization_id)
+        assert membership is not None
+        assert membership.role == MembershipRole.MEMBER
+        assert membership.location_id == location_id
         assert invited_user.is_verified is True
         assert invitation is not None
         assert invitation.status == InvitationStatus.ACCEPTED
@@ -357,10 +449,17 @@ class TestOrganizationInvitations:
 
         organization_payload = await setup_authenticated_user_with_organization(client, owner_email)
         organization_id = uuid.UUID(organization_payload["id"])
+        location_id = await create_location_for_current_owner(
+            client,
+            name_suffix="auth-rules",
+        )
 
         create_response = await client.post(
             "/organization-invitations",
-            json={"email": invited_email},
+            json={
+                "email": invited_email,
+                "location_id": str(location_id),
+            },
         )
         assert create_response.status_code == 201
         token = sent_invitation_emails[0]["token"]
@@ -394,10 +493,17 @@ class TestOrganizationInvitations:
 
         organization_payload = await setup_authenticated_user_with_organization(client, owner_email)
         organization_id = uuid.UUID(organization_payload["id"])
+        location_id = await create_location_for_current_owner(
+            client,
+            name_suffix="auth-success",
+        )
 
         create_response = await client.post(
             "/organization-invitations",
-            json={"email": invited_email},
+            json={
+                "email": invited_email,
+                "location_id": str(location_id),
+            },
         )
         assert create_response.status_code == 201
         invitation_id = create_response.json()["id"]
@@ -420,8 +526,17 @@ class TestOrganizationInvitations:
             user_result = await session.execute(select(User).where(email_filter))
             invited_user = user_result.scalar_one()
             invitation = await session.get(OrganizationInvitation, uuid.UUID(invitation_id))
+            membership_result = await session.execute(
+                select(OrganizationMembership).where(
+                    OrganizationMembership.user_id == invited_user.id,
+                    OrganizationMembership.organization_id == organization_id,
+                )
+            )
+            membership = membership_result.scalar_one_or_none()
 
-        assert invited_user.organization_id == organization_id
+        assert membership is not None
+        assert membership.role == MembershipRole.MEMBER
+        assert membership.location_id == location_id
         assert invitation is not None
         assert invitation.status == InvitationStatus.ACCEPTED
         assert invitation.accepted_at is not None
@@ -435,10 +550,17 @@ class TestOrganizationInvitations:
         invited_email = "token-reuse@example.com"
 
         await setup_authenticated_user_with_organization(client, owner_email)
+        location_id = await create_location_for_current_owner(
+            client,
+            name_suffix="token-reuse",
+        )
 
         create_response = await client.post(
             "/organization-invitations",
-            json={"email": invited_email},
+            json={
+                "email": invited_email,
+                "location_id": str(location_id),
+            },
         )
         assert create_response.status_code == 201
         token = sent_invitation_emails[0]["token"]

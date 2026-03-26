@@ -51,14 +51,7 @@ class TestRegistration:
         assert data["email"] == USER_EMAIL
         assert "id" in data
         assert data["is_active"] is True
-        assert data["organization_id"] is None
         assert "role" not in data
-
-        async with async_session_maker() as session:
-            result = await session.execute(select(User.organization_id))
-            organization_ids = [row[0] for row in result]
-
-        assert organization_ids == [None]
 
     async def test_register_duplicate_email(self, client: AsyncClient):
         await register_user(client)
@@ -70,12 +63,6 @@ class TestRegistration:
         second_response = await register_user(client, email="same@another.com")
         assert first_response.status_code == 201
         assert second_response.status_code == 201
-
-        async with async_session_maker() as session:
-            result = await session.execute(select(User.organization_id))
-            organization_ids = [row[0] for row in result]
-
-        assert organization_ids == [None, None]
 
     async def test_register_invalid_email(self, client: AsyncClient):
         response = await register_user(client, email="not-an-email")
@@ -196,7 +183,6 @@ class TestCurrentUser:
         response = await client.get("/users/me")
         assert response.status_code == 200
         assert response.json()["email"] == USER_EMAIL
-        assert response.json()["organization_id"] is None
         assert "role" not in response.json()
 
     async def test_get_me_unauthenticated(self, client: AsyncClient):

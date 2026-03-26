@@ -2,7 +2,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 export function OnboardingOnlyRoute() {
-  const { status, user } = useAuth();
+  const { status, membership } = useAuth();
 
   if (status === "loading") {
     return (
@@ -12,7 +12,7 @@ export function OnboardingOnlyRoute() {
     );
   }
 
-  if (user?.organization_id) {
+  if (membership?.organization_id) {
     return <Navigate replace to="/" />;
   }
 
@@ -20,7 +20,7 @@ export function OnboardingOnlyRoute() {
 }
 
 export function OrganizationRequiredRoute() {
-  const { status, user } = useAuth();
+  const { status, membership } = useAuth();
   const location = useLocation();
 
   if (status === "loading") {
@@ -31,7 +31,7 @@ export function OrganizationRequiredRoute() {
     );
   }
 
-  if (!user?.organization_id) {
+  if (!membership?.organization_id) {
     return <Navigate replace to="/organizacion/crear" state={{ from: location }} />;
   }
 

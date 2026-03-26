@@ -7,6 +7,7 @@ import {
   type AuthStatus,
 } from "@/features/auth/auth-context-store";
 import type { LoginRequest, SessionUser } from "@/api/contracts/auth";
+import type { OrganizationMembershipCurrentRead } from "@/api/contracts/organization-memberships";
 import type { OrganizationRead } from "@/api/contracts/organizations";
 import {
   type PropsWithChildren,
@@ -22,12 +23,30 @@ function isUnauthorizedError(error: unknown): boolean {
 
 export function AuthProvider({ children }: PropsWithChildren) {
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [membership, setMembership] = useState<OrganizationMembershipCurrentRead | null>(null);
   const [organization, setOrganization] = useState<OrganizationRead | null>(null);
   const [status, setStatus] = useState<AuthStatus>("loading");
 
-  const fetchOrganizationForUser = useCallback(
-    async (sessionUser: SessionUser): Promise<OrganizationRead | null> => {
-      if (!sessionUser.organization_id) {
+  const fetchMembershipForUser = useCallback(async (): Promise<OrganizationMembershipCurrentRead | null> => {
+    try {
+      return await organizationsApi.getCurrentMembership();
+    } catch (error) {
+      if (isUnauthorizedError(error)) {
+        throw error;
+      }
+
+      if (error instanceof ApiError && (error.status === 403 || error.status === 404)) {
+        return null;
+      }
+
+      console.error("No se pudo recuperar la membresía actual.", error);
+      return null;
+    }
+  }, []);
+
+  const fetchOrganizationForMembership = useCallback(
+    async (currentMembership: OrganizationMembershipCurrentRead | null): Promise<OrganizationRead | null> => {
+      if (!currentMembership) {
         return null;
       }
 
@@ -53,8 +72,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
     setStatus("loading");
     try {
       const currentUser = await authApi.getSession();
-      const currentOrganization = await fetchOrganizationForUser(currentUser);
+      const currentMembership = await fetchMembershipForUser();
+      const currentOrganization = await fetchOrganizationForMembership(currentMembership);
       setUser(currentUser);
+      setMembership(currentMembership);
       setOrganization(currentOrganization);
       setStatus("authenticated");
     } catch (error) {
@@ -62,20 +83,24 @@ export function AuthProvider({ children }: PropsWithChildren) {
         console.error("No se pudo recuperar la sesión activa.", error);
       }
       setUser(null);
+      setMembership(null);
       setOrganization(null);
       setStatus("unauthenticated");
     }
-  }, [fetchOrganizationForUser]);
+  }, [fetchMembershipForUser, fetchOrganizationForMembership]);
 
   const refreshOrganization = useCallback(async () => {
     if (!user) {
+      setMembership(null);
       setOrganization(null);
       return;
     }
 
-    const currentOrganization = await fetchOrganizationForUser(user);
+    const currentMembership = await fetchMembershipForUser();
+    const currentOrganization = await fetchOrganizationForMembership(currentMembership);
+    setMembership(currentMembership);
     setOrganization(currentOrganization);
-  }, [fetchOrganizationForUser, user]);
+  }, [fetchMembershipForUser, fetchOrganizationForMembership, user]);
 
   const login = useCallback(
     async (payload: LoginRequest) => {
@@ -90,6 +115,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       await authApi.logout();
     } finally {
       setUser(null);
+      setMembership(null);
       setOrganization(null);
       setStatus("unauthenticated");
     }
@@ -102,6 +128,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     setUnauthorizedHandler(() => {
       setUser(null);
+      setMembership(null);
       setOrganization(null);
       setStatus("unauthenticated");
     });
@@ -111,11 +138,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  const isOwner = Boolean(user && organization && organization.owner_user_id === user.id);
+  const isOwner = membership?.role === "owner";
 
   const value = useMemo<AuthContextValue>(
     () => ({
       user,
+      membership,
       organization,
       isOwner,
       status,
@@ -124,7 +152,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
       refreshSession,
       refreshOrganization,
     }),
-    [user, organization, isOwner, status, login, logout, refreshSession, refreshOrganization],
+    [
+      user,
+      membership,
+      organization,
+      isOwner,
+      status,
+      login,
+      logout,
+      refreshSession,
+      refreshOrganization,
+    ],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

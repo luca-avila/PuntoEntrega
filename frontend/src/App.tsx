@@ -56,10 +56,10 @@ export default function App() {
                 <Route path="/entregas" element={<DeliveriesHistoryPage />} />
                 <Route path="/entregas/:deliveryId" element={<DeliveryDetailPage />} />
 
-                <Route path="/ubicaciones" element={<LocationsListPage />} />
                 <Route path="/productos" element={<ProductsListPage />} />
                 <Route element={<OwnerOnlyRoute />}>
                   <Route path="/entregas/nueva" element={<NewDeliveryPage />} />
+                  <Route path="/ubicaciones" element={<LocationsListPage />} />
                   <Route
                     path="/ubicaciones/nueva"
                     element={<LocationFormPage mode="create" />}

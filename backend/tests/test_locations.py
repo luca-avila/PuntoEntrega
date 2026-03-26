@@ -7,6 +7,8 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from core.db import async_session_maker
 from features.auth.models import User
+from features.locations.models import Location
+from features.organizations.models import MembershipRole, OrganizationMembership
 
 USER_PASSWORD = "StrongPass123!"
 
@@ -88,12 +90,45 @@ async def setup_authenticated_user_with_organization(
 async def assign_user_to_organization(
     email: str,
     organization_id: uuid.UUID,
+    location_id: uuid.UUID | None = None,
 ) -> None:
     async with async_session_maker() as session:
         email_filter = cast(ColumnElement[bool], User.email == email)
         result = await session.execute(select(User).where(email_filter))
         user = result.scalar_one()
-        user.organization_id = organization_id
+
+        if location_id is None:
+            location_result = await session.execute(
+                select(Location).where(Location.organization_id == organization_id).limit(1)
+            )
+            location = location_result.scalar_one_or_none()
+            if location is None:
+                location = Location(
+                    organization_id=organization_id,
+                    name=f"Ubicación {email.split('@', maxsplit=1)[0]}",
+                    address="Dirección pendiente",
+                    latitude=0.0,
+                    longitude=0.0,
+                )
+                session.add(location)
+                await session.flush()
+            location_id = location.id
+
+        existing_membership_result = await session.execute(
+            select(OrganizationMembership).where(OrganizationMembership.user_id == user.id)
+        )
+        existing_membership = existing_membership_result.scalar_one_or_none()
+        if existing_membership is not None:
+            await session.delete(existing_membership)
+            await session.flush()
+
+        membership = OrganizationMembership(
+            user_id=user.id,
+            organization_id=organization_id,
+            role=MembershipRole.MEMBER,
+            location_id=location_id,
+        )
+        session.add(membership)
         await session.commit()
 
 
@@ -101,9 +136,10 @@ async def setup_member_user_in_organization(
     client: AsyncClient,
     email: str,
     organization_id: uuid.UUID,
+    location_id: uuid.UUID | None = None,
 ) -> None:
     await setup_authenticated_user_without_organization(client, email)
-    await assign_user_to_organization(email, organization_id)
+    await assign_user_to_organization(email, organization_id, location_id=location_id)
 
 
 class TestLocationsAuth:

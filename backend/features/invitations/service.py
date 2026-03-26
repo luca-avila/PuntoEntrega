@@ -17,6 +17,8 @@ from features.auth.models import User
 from features.auth.service import UserManager
 from features.invitations.email import send_organization_invitation_email
 from features.invitations.models import InvitationStatus, OrganizationInvitation
+from features.organizations.models import MembershipRole, OrganizationMembership
+from features.organizations.service import ensure_location_belongs_to_organization
 from features.invitations.schemas import (
     InvitationAcceptInfoStatus,
     OrganizationInvitationAcceptInfoRead,
@@ -53,6 +55,18 @@ async def _find_user_by_email(session: AsyncSession, email: str) -> User | None:
         select(User).where(func.lower(User.email) == normalized_email)
     )
     return result.scalar_one_or_none()
+
+
+async def _list_memberships_for_user(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+) -> list[OrganizationMembership]:
+    result = await session.execute(
+        select(OrganizationMembership)
+        .where(OrganizationMembership.user_id == user_id)
+        .order_by(OrganizationMembership.created_at.asc())
+    )
+    return list(result.scalars().all())
 
 
 async def _get_pending_invitation_for_email(
@@ -144,20 +158,28 @@ async def create_or_resend_invitation(
     organization_name: str,
     invited_by_user_id: uuid.UUID,
     invited_email: str,
+    invited_location_id: uuid.UUID,
 ) -> OrganizationInvitation:
     normalized_email = _normalize_email(invited_email)
+    await ensure_location_belongs_to_organization(
+        session=session,
+        organization_id=organization_id,
+        location_id=invited_location_id,
+    )
     existing_user = await _find_user_by_email(session, normalized_email)
 
-    if existing_user is not None and existing_user.organization_id is not None:
-        if existing_user.organization_id == organization_id:
+    if existing_user is not None:
+        existing_memberships = await _list_memberships_for_user(session, existing_user.id)
+        if existing_memberships:
+            if any(membership.organization_id == organization_id for membership in existing_memberships):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="El usuario ya pertenece a esta organización.",
+                )
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="El usuario ya pertenece a esta organización.",
+                detail="El usuario ya pertenece a otra organización.",
             )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="El usuario ya pertenece a otra organización.",
-        )
 
     invitation = await _get_pending_invitation_for_email(
         session=session,
@@ -173,6 +195,7 @@ async def create_or_resend_invitation(
             organization_id=organization_id,
             invited_email=normalized_email,
             invited_by_user_id=invited_by_user_id,
+            location_id=invited_location_id,
             token_hash=_hash_invitation_token(raw_token),
             status=InvitationStatus.PENDING,
             expires_at=invitation_expiration,
@@ -180,6 +203,7 @@ async def create_or_resend_invitation(
         session.add(invitation)
     else:
         invitation.invited_by_user_id = invited_by_user_id
+        invitation.location_id = invited_location_id
         invitation.token_hash = _hash_invitation_token(raw_token)
         invitation.expires_at = invitation_expiration
         invitation.status = InvitationStatus.PENDING
@@ -277,6 +301,7 @@ async def get_accept_info(
             invited_email=invitation.invited_email,
             organization_id=invitation.organization_id,
             organization_name=invitation.organization.name if invitation.organization else None,
+            location_id=invitation.location_id,
             expires_at=invitation.expires_at,
         )
 
@@ -310,6 +335,11 @@ async def accept_invitation_new_account(
     password: str,
 ) -> tuple[User, OrganizationInvitation]:
     invitation = await _get_invitation_ready_for_accept(session, token)
+    if invitation.location_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La invitación no tiene ubicación asignada. Solicitá una nueva invitación.",
+        )
 
     existing_user = await _find_user_by_email(session, invitation.invited_email)
     if existing_user is not None:
@@ -330,7 +360,12 @@ async def accept_invitation_new_account(
         is_active=True,
         is_superuser=False,
         is_verified=True,
+    )
+    membership = OrganizationMembership(
+        user=user,
         organization_id=invitation.organization_id,
+        role=MembershipRole.MEMBER,
+        location_id=invitation.location_id,
     )
 
     invitation.status = InvitationStatus.ACCEPTED
@@ -338,6 +373,7 @@ async def accept_invitation_new_account(
 
     try:
         session.add(user)
+        session.add(membership)
         await session.commit()
     except Exception:
         await session.rollback()
@@ -355,6 +391,11 @@ async def accept_invitation_authenticated(
     current_user_email: str,
 ) -> tuple[User, OrganizationInvitation]:
     invitation = await _get_invitation_ready_for_accept(session, token)
+    if invitation.location_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="La invitación no tiene ubicación asignada. Solicitá una nueva invitación.",
+        )
 
     normalized_current_user_email = _normalize_email(current_user_email)
     if normalized_current_user_email != invitation.invited_email:
@@ -370,18 +411,25 @@ async def accept_invitation_authenticated(
             detail="Usuario no encontrado.",
         )
 
-    if user.organization_id is not None:
+    existing_memberships = await _list_memberships_for_user(session, user.id)
+    if existing_memberships:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="El usuario ya pertenece a una organización.",
         )
 
-    user.organization_id = invitation.organization_id
     user.is_verified = True
+    membership = OrganizationMembership(
+        user_id=user.id,
+        organization_id=invitation.organization_id,
+        role=MembershipRole.MEMBER,
+        location_id=invitation.location_id,
+    )
     invitation.status = InvitationStatus.ACCEPTED
     invitation.accepted_at = datetime.now(UTC)
 
     try:
+        session.add(membership)
         await session.commit()
     except Exception:
         await session.rollback()

@@ -11,6 +11,7 @@ export interface ProductRequestRead {
   id: UUID;
   organization_id: UUID;
   requested_by_user_id: UUID;
+  requested_for_location_id: UUID | null;
   subject: string;
   message: string;
   email_status: ProductRequestEmailStatus;

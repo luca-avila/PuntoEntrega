@@ -2,18 +2,26 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, Text, Uuid, func
+from sqlalchemy import DateTime, Float, ForeignKey, String, Text, Uuid, func, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from features.auth.models import Base
 
 if TYPE_CHECKING:
+    from features.organizations.models import OrganizationMembership
     from features.deliveries.models import Delivery
     from features.organizations.models import Organization
 
 
 class Location(Base):
     __tablename__ = "locations"
+    __table_args__ = (
+        UniqueConstraint(
+            "organization_id",
+            "id",
+            name="uq_locations_organization_id_id",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
@@ -48,4 +56,7 @@ class Location(Base):
 
     organization: Mapped["Organization"] = relationship(back_populates="locations")
     deliveries: Mapped[list["Delivery"]] = relationship(back_populates="location")
-
+    memberships: Mapped[list["OrganizationMembership"]] = relationship(
+        back_populates="location",
+        overlaps="organization,memberships",
+    )

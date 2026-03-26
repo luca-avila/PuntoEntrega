@@ -15,6 +15,7 @@ from features.deliveries.service import (
 )
 from features.organizations.service import (
     OrganizationUserContext,
+    get_member_assigned_location_id,
     require_organization_owner,
     require_organization_user,
 )
@@ -44,10 +45,16 @@ async def list_deliveries(
             detail=message,
         ) from exc
 
+    scoped_location_id = await get_member_assigned_location_id(
+        session=session,
+        context=context,
+    )
+
     return await list_deliveries_for_organization(
         session=session,
         organization_id=context.organization.id,
         filters=filters,
+        scoped_location_id=scoped_location_id,
     )
 
 
@@ -77,8 +84,13 @@ async def get_delivery(
     context: OrganizationUserContext = Depends(require_organization_user),
     session: AsyncSession = Depends(get_async_session),
 ):
+    scoped_location_id = await get_member_assigned_location_id(
+        session=session,
+        context=context,
+    )
     return await get_delivery_for_organization(
         session=session,
         organization_id=context.organization.id,
         delivery_id=delivery_id,
+        scoped_location_id=scoped_location_id,
     )

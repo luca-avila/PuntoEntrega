@@ -1,6 +1,8 @@
 import {
   invitationsApi,
+  locationsApi,
   organizationMembersApi,
+  type LocationRead,
   type OrganizationInvitationRead,
   type OrganizationMemberRead,
 } from "@/api";
@@ -8,12 +10,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { getApiErrorMessage } from "@/lib/errors";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 interface InviteFormValues {
   email: string;
+  location_id: string;
 }
 
 const invitationStatusLabel: Record<OrganizationInvitationRead["status"], string> = {
@@ -57,6 +61,7 @@ function getInvitationStatusClass(status: OrganizationInvitationRead["status"]):
 export function TeamPage() {
   const [members, setMembers] = useState<OrganizationMemberRead[]>([]);
   const [invitations, setInvitations] = useState<OrganizationInvitationRead[]>([]);
+  const [locations, setLocations] = useState<LocationRead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isCancellingId, setIsCancellingId] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -71,6 +76,7 @@ export function TeamPage() {
   } = useForm<InviteFormValues>({
     defaultValues: {
       email: "",
+      location_id: "",
     },
   });
 
@@ -78,12 +84,14 @@ export function TeamPage() {
     setIsLoading(true);
     setLoadError(null);
     try {
-      const [membersData, invitationsData] = await Promise.all([
+      const [membersData, invitationsData, locationsData] = await Promise.all([
         organizationMembersApi.list(),
         invitationsApi.list(),
+        locationsApi.list(),
       ]);
       setMembers(membersData);
       setInvitations(invitationsData);
+      setLocations(locationsData);
     } catch (error) {
       setLoadError(getApiErrorMessage(error, "No pudimos cargar la información del equipo."));
     } finally {
@@ -99,6 +107,10 @@ export function TeamPage() {
     () => invitations.filter((invitation) => invitation.status === "pending").length,
     [invitations],
   );
+  const locationsById = useMemo(
+    () => new Map(locations.map((location) => [location.id, location])),
+    [locations],
+  );
 
   const onSubmitInvite = handleSubmit(async (formValues) => {
     setInviteError(null);
@@ -106,10 +118,16 @@ export function TeamPage() {
     try {
       const invitation = await invitationsApi.create({
         email: formValues.email,
+        location_id: formValues.location_id,
       });
       setInvitations((current) => [invitation, ...current.filter((item) => item.id !== invitation.id)]);
-      setInviteSuccessMessage(`Invitación enviada a ${invitation.invited_email}.`);
-      reset();
+      const invitationLocationName = invitation.location_id
+        ? (locationsById.get(invitation.location_id)?.name ?? "Ubicación asignada")
+        : "Ubicación sin asignar";
+      setInviteSuccessMessage(
+        `Invitación enviada a ${invitation.invited_email} para ${invitationLocationName}.`,
+      );
+      reset({ email: "", location_id: "" });
     } catch (error) {
       setInviteError(getApiErrorMessage(error, "No pudimos enviar la invitación."));
     }
@@ -172,6 +190,12 @@ export function TeamPage() {
                       {member.is_active ? "Activo" : "Inactivo"} · Alta:{" "}
                       {formatDateTime(member.created_at)}
                     </p>
+                    <p className="text-xs text-muted-foreground">
+                      Ubicación:{" "}
+                      {member.location_id
+                        ? (locationsById.get(member.location_id)?.name ?? "No disponible")
+                        : "Sin asignar"}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -206,6 +230,26 @@ export function TeamPage() {
                 />
                 {errors.email ? (
                   <p className="text-sm text-destructive">{errors.email.message}</p>
+                ) : null}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="invite-location-id">Ubicación</Label>
+                <Select
+                  id="invite-location-id"
+                  {...register("location_id", {
+                    required: "La ubicación es obligatoria.",
+                  })}
+                >
+                  <option value="">Seleccionar ubicación</option>
+                  {locations.map((location) => (
+                    <option key={location.id} value={location.id}>
+                      {location.name}
+                    </option>
+                  ))}
+                </Select>
+                {errors.location_id ? (
+                  <p className="text-sm text-destructive">{errors.location_id.message}</p>
                 ) : null}
               </div>
 
@@ -256,6 +300,12 @@ export function TeamPage() {
                     <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                       <span className={getInvitationStatusClass(invitation.status)}>
                         {invitationStatusLabel[invitation.status]}
+                      </span>
+                      <span>
+                        Ubicación:{" "}
+                        {invitation.location_id
+                          ? (locationsById.get(invitation.location_id)?.name ?? "No disponible")
+                          : "Sin asignar"}
                       </span>
                       <span>Creada: {formatDateTime(invitation.created_at)}</span>
                       <span>Expira: {formatDateTime(invitation.expires_at)}</span>

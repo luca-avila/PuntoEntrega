@@ -17,12 +17,16 @@ def _format_requested_at_for_argentina(requested_at: datetime) -> str:
 def _build_product_request_email_html(
     organization_name: str,
     requester_email: str,
+    requested_for_location_name: str,
+    requested_for_location_address: str,
     request_subject: str,
     request_message: str,
     requested_at: datetime,
 ) -> str:
     safe_organization_name = escape(organization_name)
     safe_requester_email = escape(requester_email)
+    safe_requested_for_location_name = escape(requested_for_location_name)
+    safe_requested_for_location_address = escape(requested_for_location_address)
     safe_subject = escape(request_subject)
     safe_message = escape(request_message).replace("\n", "<br/>")
     requested_at_label = _format_requested_at_for_argentina(requested_at)
@@ -32,6 +36,8 @@ def _build_product_request_email_html(
         "<p>Se registró una nueva solicitud en PuntoEntrega.</p>"
         f"<p><strong>Organización:</strong> {safe_organization_name}</p>"
         f"<p><strong>Solicitado por:</strong> {safe_requester_email}</p>"
+        f"<p><strong>Ubicación destino:</strong> {safe_requested_for_location_name}</p>"
+        f"<p><strong>Dirección destino:</strong> {safe_requested_for_location_address}</p>"
         f"<p><strong>Fecha:</strong> {requested_at_label}</p>"
         f"<p><strong>Asunto:</strong> {safe_subject}</p>"
         f"<p><strong>Mensaje:</strong><br/>{safe_message}</p>"
@@ -42,6 +48,8 @@ async def send_product_request_email(
     to_email: str,
     organization_name: str,
     requester_email: str,
+    requested_for_location_name: str,
+    requested_for_location_address: str,
     request_subject: str,
     request_message: str,
     requested_at: datetime,
@@ -52,6 +60,8 @@ async def send_product_request_email(
         html=_build_product_request_email_html(
             organization_name=organization_name,
             requester_email=requester_email,
+            requested_for_location_name=requested_for_location_name,
+            requested_for_location_address=requested_for_location_address,
             request_subject=request_subject,
             request_message=request_message,
             requested_at=requested_at,

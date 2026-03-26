@@ -7,13 +7,14 @@ from typing import Any
 from fastapi import Depends, HTTPException, status
 from sqlalchemy import asc, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from core.db import get_async_session
 from features.auth.models import User
 from features.auth.service import current_active_user
 from features.deliveries.models import Delivery
 from features.locations.models import Location
-from features.organizations.models import Organization
+from features.organizations.models import MembershipRole, Organization, OrganizationMembership
 from features.products.models import Product
 
 ORGANIZATION_SLUG_MAX_LENGTH = 120
@@ -22,7 +23,12 @@ ORGANIZATION_SLUG_MAX_LENGTH = 120
 @dataclass(frozen=True)
 class OrganizationUserContext:
     user: User
+    membership: OrganizationMembership
     organization: Organization
+
+
+def is_organization_owner(context: OrganizationUserContext) -> bool:
+    return context.membership.role == MembershipRole.OWNER
 
 
 def _slugify(value: str) -> str:
@@ -54,41 +60,69 @@ async def _build_unique_organization_slug(session: AsyncSession, organization_na
     return candidate
 
 
-async def get_current_user_with_optional_organization(
-    user: User = Depends(current_active_user),
-) -> User:
-    return user
-
-
-async def get_current_user_with_organization(
-    user: User = Depends(get_current_user_with_optional_organization),
-    session: AsyncSession = Depends(get_async_session),
-) -> OrganizationUserContext:
-    if user.organization_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="El usuario no está asignado a una organización.",
-        )
-
+async def _get_active_memberships_for_user(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+) -> list[OrganizationMembership]:
     result = await session.execute(
-        select(Organization).where(
-            Organization.id == user.organization_id,
+        select(OrganizationMembership)
+        .join(
+            Organization,
+            Organization.id == OrganizationMembership.organization_id,
+        )
+        .where(
+            OrganizationMembership.user_id == user_id,
             Organization.is_active.is_(True),
         )
+        .options(selectinload(OrganizationMembership.organization))
+        .order_by(OrganizationMembership.created_at.asc())
     )
-    organization = result.scalar_one_or_none()
+    return list(result.scalars().all())
+
+
+async def get_current_user_with_optional_organization(
+    user: User = Depends(current_active_user),
+    session: AsyncSession = Depends(get_async_session),
+) -> OrganizationUserContext | None:
+    memberships = await _get_active_memberships_for_user(session, user.id)
+    if not memberships:
+        return None
+
+    if len(memberships) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "El usuario pertenece a múltiples organizaciones activas. "
+                "La selección de organización no está soportada todavía."
+            ),
+        )
+
+    membership = memberships[0]
+    organization = membership.organization
     if organization is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="La organización está inactiva o no existe.",
         )
-    return OrganizationUserContext(user=user, organization=organization)
+
+    return OrganizationUserContext(user=user, membership=membership, organization=organization)
+
+
+async def get_current_user_with_organization(
+    context: OrganizationUserContext | None = Depends(get_current_user_with_optional_organization),
+) -> OrganizationUserContext:
+    if context is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El usuario no está asignado a una organización.",
+        )
+    return context
 
 
 async def require_organization_owner(
     context: OrganizationUserContext = Depends(get_current_user_with_organization),
 ) -> OrganizationUserContext:
-    if context.organization.owner_user_id != context.user.id:
+    if not is_organization_owner(context):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Solo el owner de la organización puede realizar esta acción.",
@@ -99,7 +133,7 @@ async def require_organization_owner(
 async def require_organization_member(
     context: OrganizationUserContext = Depends(get_current_user_with_organization),
 ) -> OrganizationUserContext:
-    if context.organization.owner_user_id == context.user.id:
+    if is_organization_owner(context):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Esta acción solo está permitida para miembros de la organización.",
@@ -125,6 +159,35 @@ async def get_current_organization(
     return context.organization
 
 
+async def get_member_assigned_location_id(
+    session: AsyncSession,
+    context: OrganizationUserContext,
+) -> uuid.UUID | None:
+    if is_organization_owner(context):
+        return None
+
+    location_id = context.membership.location_id
+    if location_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El miembro no tiene una ubicación asignada.",
+        )
+
+    belongs_to_organization = await _resource_belongs_to_organization(
+        session,
+        Location,
+        location_id,
+        context.organization.id,
+    )
+    if not belongs_to_organization:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="La ubicación asignada no pertenece a la organización del miembro.",
+        )
+
+    return location_id
+
+
 async def create_organization_for_user(
     session: AsyncSession,
     user_id: uuid.UUID,
@@ -137,7 +200,12 @@ async def create_organization_for_user(
             detail="Usuario no encontrado.",
         )
 
-    if user.organization_id is not None:
+    existing_membership_result = await session.execute(
+        select(OrganizationMembership.id)
+        .where(OrganizationMembership.user_id == user.id)
+        .limit(1)
+    )
+    if existing_membership_result.scalar_one_or_none() is not None:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="El usuario ya está asignado a una organización.",
@@ -147,14 +215,18 @@ async def create_organization_for_user(
     organization = Organization(
         name=organization_name,
         slug=organization_slug,
-        owner_user_id=user.id,
     )
 
-    user.organization = organization
+    membership = OrganizationMembership(
+        user_id=user.id,
+        organization=organization,
+        role=MembershipRole.OWNER,
+        location_id=None,
+    )
 
     try:
         session.add(organization)
-        session.add(user)
+        session.add(membership)
         await session.commit()
     except Exception:
         await session.rollback()
@@ -168,26 +240,23 @@ async def get_current_organization_for_user(
     session: AsyncSession,
     user_id: uuid.UUID,
 ) -> Organization:
-    user = await session.get(User, user_id)
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuario no encontrado.",
-        )
-
-    if user.organization_id is None:
+    memberships = await _get_active_memberships_for_user(session, user_id)
+    if not memberships:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="El usuario no está asignado a una organización.",
         )
 
-    result = await session.execute(
-        select(Organization).where(
-            Organization.id == user.organization_id,
-            Organization.is_active.is_(True),
+    if len(memberships) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "El usuario pertenece a múltiples organizaciones activas. "
+                "La selección de organización no está soportada todavía."
+            ),
         )
-    )
-    organization = result.scalar_one_or_none()
+
+    organization = memberships[0].organization
     if organization is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -196,13 +265,38 @@ async def get_current_organization_for_user(
     return organization
 
 
+async def get_current_membership_for_user(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+) -> OrganizationMembership:
+    memberships = await _get_active_memberships_for_user(session, user_id)
+    if not memberships:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="El usuario no está asignado a una organización.",
+        )
+
+    if len(memberships) > 1:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "El usuario pertenece a múltiples organizaciones activas. "
+                "La selección de organización no está soportada todavía."
+            ),
+        )
+
+    return memberships[0]
+
+
 async def list_members_for_organization(
     session: AsyncSession,
     organization_id: uuid.UUID,
-) -> list[User]:
+) -> list[OrganizationMembership]:
     result = await session.execute(
-        select(User)
-        .where(User.organization_id == organization_id)
+        select(OrganizationMembership)
+        .join(User, User.id == OrganizationMembership.user_id)
+        .where(OrganizationMembership.organization_id == organization_id)
+        .options(selectinload(OrganizationMembership.user))
         .order_by(asc(User.email))
     )
     return list(result.scalars().all())

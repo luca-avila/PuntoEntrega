@@ -65,22 +65,29 @@ export function DeliveriesHistoryPage() {
   const [dateToFilter, setDateToFilter] = useState("");
 
   const loadDependencies = useCallback(async () => {
-    const [locationRecords, productRecords] = await Promise.all([
-      locationsApi.list(),
-      productsApi.list(),
-    ]);
-    setLocations(locationRecords);
+    if (isOwner) {
+      const [locationRecords, productRecords] = await Promise.all([
+        locationsApi.list(),
+        productsApi.list(),
+      ]);
+      setLocations(locationRecords);
+      setProducts(productRecords);
+      return;
+    }
+
+    const productRecords = await productsApi.list();
+    setLocations([]);
     setProducts(productRecords);
-  }, []);
+  }, [isOwner]);
 
   const loadDeliveries = useCallback(async () => {
     const records = await deliveriesApi.list({
-      location_id: locationFilter || undefined,
+      location_id: isOwner ? (locationFilter || undefined) : undefined,
       delivered_from: toFilterIsoDate(dateFromFilter, "from"),
       delivered_to: toFilterIsoDate(dateToFilter, "to"),
     });
     setDeliveries(records);
-  }, [locationFilter, dateFromFilter, dateToFilter]);
+  }, [isOwner, locationFilter, dateFromFilter, dateToFilter]);
 
   const loadHistory = useCallback(async () => {
     setIsLoading(true);
@@ -166,22 +173,24 @@ export function DeliveriesHistoryPage() {
           <CardTitle className="text-base">Filtros</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="space-y-2 lg:col-span-1">
-            <Label htmlFor="filter_location_id">Ubicación</Label>
-            <Select
-              disabled={isLoading}
-              id="filter_location_id"
-              onChange={(event) => setLocationFilter(event.target.value)}
-              value={locationFilter}
-            >
-              <option value="">Todas</option>
-              {locations.map((location) => (
-                <option key={location.id} value={location.id}>
-                  {location.name}
-                </option>
-              ))}
-            </Select>
-          </div>
+          {isOwner ? (
+            <div className="space-y-2 lg:col-span-1">
+              <Label htmlFor="filter_location_id">Ubicación</Label>
+              <Select
+                disabled={isLoading}
+                id="filter_location_id"
+                onChange={(event) => setLocationFilter(event.target.value)}
+                value={locationFilter}
+              >
+                <option value="">Todas</option>
+                {locations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {location.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          ) : null}
 
           <div className="space-y-2">
             <Label htmlFor="filter_date_from">Desde</Label>
@@ -276,11 +285,13 @@ export function DeliveriesHistoryPage() {
         <div className="grid gap-3">
           {deliveries.map((delivery) => {
             const location = locationsById.get(delivery.location_id);
+            const locationName = delivery.location_name ?? location?.name ?? "Ubicación";
+            const locationAddress = delivery.location_address ?? location?.address ?? "Sin dirección";
             return (
               <Card key={delivery.id}>
                 <CardHeader>
                   <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-                    {location?.name ?? "Ubicación"}
+                    {locationName}
                     <span
                       className={`status-chip ${getDeliveryEmailStatusClassName(
                         delivery.email_status,
@@ -296,7 +307,7 @@ export function DeliveriesHistoryPage() {
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3 text-sm sm:flex-row sm:items-end sm:justify-between">
                   <div className="space-y-1 text-muted-foreground">
-                    <p>{location?.address ?? "Sin dirección"}</p>
+                    <p>{locationAddress}</p>
                     <p>{getItemsSummary(delivery, productsById)}</p>
                   </div>
                   <Button
