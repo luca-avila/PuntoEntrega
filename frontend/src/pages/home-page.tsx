@@ -18,8 +18,13 @@ const quickAccessItems: QuickAccessItem[] = [
   },
   {
     to: "/entregas",
-    title: "Historial",
+    title: "Historial de entregas",
     description: "Revisá estado de envíos y últimas entregas registradas.",
+  },
+  {
+    to: "/pedidos",
+    title: "Historial de pedidos",
+    description: "Consultá solicitudes registradas y su estado de email.",
   },
   {
     to: "/ubicaciones",

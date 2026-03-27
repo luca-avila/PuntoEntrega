@@ -16,6 +16,7 @@ import { LoginPage } from "@/pages/login-page";
 import { NewDeliveryPage } from "@/pages/new-delivery-page";
 import { OrganizationOnboardingPage } from "@/pages/organization-onboarding-page";
 import { ProductFormPage } from "@/pages/product-form-page";
+import { ProductRequestsHistoryPage } from "@/pages/product-requests-history-page";
 import { ProductsListPage } from "@/pages/products-list-page";
 import { RegisterPage } from "@/pages/register-page";
 import { ForgotPasswordPage } from "@/pages/forgot-password-page";
@@ -55,6 +56,7 @@ export default function App() {
               <Route element={<OrganizationRequiredRoute />}>
                 <Route path="/entregas" element={<DeliveriesHistoryPage />} />
                 <Route path="/entregas/:deliveryId" element={<DeliveryDetailPage />} />
+                <Route path="/pedidos" element={<ProductRequestsHistoryPage />} />
 
                 <Route path="/productos" element={<ProductsListPage />} />
                 <Route element={<OwnerOnlyRoute />}>

@@ -24,6 +24,8 @@ export interface ProductRequestRead {
   organization_id: UUID;
   requested_by_user_id: UUID;
   requested_for_location_id: UUID | null;
+  requested_for_location_name: string | null;
+  requested_for_location_address: string | null;
   subject: string;
   message: string | null;
   items: ProductRequestItemRead[];
@@ -33,4 +35,10 @@ export interface ProductRequestRead {
   email_sent_at: ISODateTime | null;
   created_at: ISODateTime;
   updated_at: ISODateTime;
+}
+
+export interface ListProductRequestsParams {
+  requested_for_location_id?: UUID;
+  created_from?: ISODateTime;
+  created_to?: ISODateTime;
 }

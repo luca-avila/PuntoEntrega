@@ -9,8 +9,10 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from core.db import async_session_maker
 from features.auth.models import User
+from features.organizations.models import OrganizationMembership
 from features.product_requests.models import ProductRequest, ProductRequestEmailStatus
 from tests.test_locations import (
+    build_location_payload,
     login_user,
     setup_authenticated_user_with_organization,
     setup_member_user_in_organization,
@@ -67,6 +69,20 @@ async def set_user_verified(email: str, is_verified: bool) -> None:
         user = result.scalar_one()
         user.is_verified = is_verified
         await session.commit()
+
+
+async def get_user_assigned_location_id(email: str) -> uuid.UUID:
+    async with async_session_maker() as session:
+        email_filter = cast(ColumnElement[bool], User.email == email)
+        result = await session.execute(
+            select(OrganizationMembership.location_id)
+            .join(User, OrganizationMembership.user_id == User.id)
+            .where(email_filter)
+            .limit(1)
+        )
+        location_id = result.scalar_one_or_none()
+        assert location_id is not None
+        return location_id
 
 
 async def wait_for_product_request_status_in_db(
@@ -211,17 +227,181 @@ class TestProductRequestsPermissions:
         assert second_request_id in request_ids
         assert {item["organization_id"] for item in payload} == {str(organization_id)}
 
-    async def test_member_cannot_list_product_requests(self, client: AsyncClient):
-        _owner_email, member_email, _organization_id, _product_id = await setup_owner_and_member(
+    async def test_member_can_list_product_requests_for_assigned_location(self, client: AsyncClient):
+        owner_email, member_email, organization_id, product_id = await setup_owner_and_member(
             client,
-            owner_email="pr-owner-member-list-forbidden@example.com",
-            member_email="pr-member-list-forbidden@example.com",
+            owner_email="pr-owner-member-list@example.com",
+            member_email="pr-member-list@example.com",
+        )
+        member_location_id = await get_user_assigned_location_id(member_email)
+
+        await login_user(client, owner_email)
+        second_location_payload = build_location_payload()
+        second_location_payload["name"] = "Sucursal Secundaria"
+        second_location_response = await client.post("/locations", json=second_location_payload)
+        assert second_location_response.status_code == 201
+        second_location_id = uuid.UUID(second_location_response.json()["id"])
+
+        await logout(client)
+        second_member_email = "pr-member-list-second@example.com"
+        await setup_member_user_in_organization(
+            client,
+            second_member_email,
+            organization_id,
+            location_id=second_location_id,
         )
 
+        await logout(client)
+        await login_user(client, member_email)
+        first_create_response = await client.post(
+            "/product-requests",
+            json={
+                "subject": "Pedido ubicación principal",
+                "message": "Pedido creado por member de ubicación principal.",
+                "items": [{"product_id": str(product_id), "quantity": "1"}],
+            },
+        )
+        assert first_create_response.status_code == 201
+        first_request_id = first_create_response.json()["id"]
+
+        await logout(client)
+        await login_user(client, second_member_email)
+        second_create_response = await client.post(
+            "/product-requests",
+            json={
+                "subject": "Pedido ubicación secundaria",
+                "message": "Pedido creado por member de ubicación secundaria.",
+                "items": [{"product_id": str(product_id), "quantity": "1"}],
+            },
+        )
+        assert second_create_response.status_code == 201
+        second_request_id = second_create_response.json()["id"]
+
+        await logout(client)
         await login_user(client, member_email)
         response = await client.get("/product-requests")
 
+        assert response.status_code == 200
+        payload = response.json()
+        request_ids = {item["id"] for item in payload}
+        assert first_request_id in request_ids
+        assert second_request_id not in request_ids
+        assert {item["requested_for_location_id"] for item in payload} == {str(member_location_id)}
+        assert all(item["requested_for_location_name"] is not None for item in payload)
+        assert all(item["requested_for_location_address"] is not None for item in payload)
+
+    async def test_member_cannot_filter_product_requests_for_other_location(self, client: AsyncClient):
+        owner_email, member_email, _organization_id, _product_id = await setup_owner_and_member(
+            client,
+            owner_email="pr-owner-member-filter-denied@example.com",
+            member_email="pr-member-filter-denied@example.com",
+        )
+
+        await login_user(client, owner_email)
+        second_location_payload = build_location_payload()
+        second_location_payload["name"] = "Sucursal no asignada"
+        second_location_response = await client.post("/locations", json=second_location_payload)
+        assert second_location_response.status_code == 201
+        second_location_id = second_location_response.json()["id"]
+
+        await logout(client)
+        await login_user(client, member_email)
+        response = await client.get(
+            "/product-requests",
+            params={"requested_for_location_id": second_location_id},
+        )
+
         assert response.status_code == 403
+        assert response.json()["detail"] == "El miembro no puede consultar pedidos de otra ubicación."
+
+    async def test_owner_list_supports_location_and_date_filters(self, client: AsyncClient):
+        owner_email, member_email, organization_id, product_id = await setup_owner_and_member(
+            client,
+            owner_email="pr-owner-filter@example.com",
+            member_email="pr-member-filter-a@example.com",
+        )
+
+        await login_user(client, owner_email)
+        second_location_payload = build_location_payload()
+        second_location_payload["name"] = "Sucursal filtro B"
+        second_location_response = await client.post("/locations", json=second_location_payload)
+        assert second_location_response.status_code == 201
+        member_b_location_id = uuid.UUID(second_location_response.json()["id"])
+
+        await logout(client)
+        member_b_email = "pr-member-filter-b@example.com"
+        await setup_member_user_in_organization(
+            client,
+            member_b_email,
+            organization_id,
+            location_id=member_b_location_id,
+        )
+
+        await logout(client)
+        await login_user(client, member_email)
+        first_create_response = await client.post(
+            "/product-requests",
+            json={
+                "subject": "Pedido filtro A",
+                "message": "Pedido para ubicación A.",
+                "items": [{"product_id": str(product_id), "quantity": "1"}],
+            },
+        )
+        assert first_create_response.status_code == 201
+        first_request_id = first_create_response.json()["id"]
+
+        await logout(client)
+        await login_user(client, member_b_email)
+        second_create_response = await client.post(
+            "/product-requests",
+            json={
+                "subject": "Pedido filtro B",
+                "message": "Pedido para ubicación B.",
+                "items": [{"product_id": str(product_id), "quantity": "2"}],
+            },
+        )
+        assert second_create_response.status_code == 201
+        second_request_id = second_create_response.json()["id"]
+
+        await logout(client)
+        await login_user(client, owner_email)
+
+        location_filtered_response = await client.get(
+            "/product-requests",
+            params={"requested_for_location_id": str(member_b_location_id)},
+        )
+        assert location_filtered_response.status_code == 200
+        location_filtered_ids = {item["id"] for item in location_filtered_response.json()}
+        assert second_request_id in location_filtered_ids
+        assert first_request_id not in location_filtered_ids
+
+        created_from_filtered_response = await client.get(
+            "/product-requests",
+            params={"created_from": "2100-01-01T00:00:00Z"},
+        )
+        assert created_from_filtered_response.status_code == 200
+        assert created_from_filtered_response.json() == []
+
+        created_to_filtered_response = await client.get(
+            "/product-requests",
+            params={"created_to": "2000-01-01T00:00:00Z"},
+        )
+        assert created_to_filtered_response.status_code == 200
+        assert created_to_filtered_response.json() == []
+
+    async def test_list_rejects_invalid_date_range(self, client: AsyncClient):
+        owner_email = "pr-owner-invalid-date-range@example.com"
+        await setup_authenticated_user_with_organization(client, owner_email)
+
+        response = await client.get(
+            "/product-requests",
+            params={
+                "created_from": "2026-03-28T00:00:00Z",
+                "created_to": "2026-03-27T00:00:00Z",
+            },
+        )
+        assert response.status_code == 422
+        assert response.json()["detail"] == "Value error, La fecha desde debe ser menor o igual a la fecha hasta."
 
 
 class TestProductRequestsEmailStatus:

@@ -4,7 +4,9 @@ import uuid
 from decimal import Decimal
 from datetime import UTC, datetime
 
+from fastapi import HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.sql import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -18,6 +20,7 @@ from features.product_requests.models import (
     ProductRequestEmailStatus,
     ProductRequestItem,
 )
+from features.product_requests.schemas import ProductRequestListFilters
 
 logger = logging.getLogger(__name__)
 
@@ -164,14 +167,62 @@ async def create_product_request(
 async def list_product_requests_for_organization(
     session: AsyncSession,
     organization_id: uuid.UUID,
+    filters: ProductRequestListFilters,
+    scoped_location_id: uuid.UUID | None = None,
 ) -> list[ProductRequest]:
-    result = await session.execute(
+    query: Select[tuple[ProductRequest]] = (
         select(ProductRequest)
         .where(ProductRequest.organization_id == organization_id)
-        .options(selectinload(ProductRequest.items))
+        .options(
+            selectinload(ProductRequest.requested_for_location),
+            selectinload(ProductRequest.items),
+        )
         .order_by(ProductRequest.created_at.desc())
     )
-    return list(result.scalars().all())
+
+    if scoped_location_id is not None:
+        if (
+            filters.requested_for_location_id is not None
+            and filters.requested_for_location_id != scoped_location_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="El miembro no puede consultar pedidos de otra ubicación.",
+            )
+        query = query.where(ProductRequest.requested_for_location_id == scoped_location_id)
+    elif filters.requested_for_location_id is not None:
+        query = query.where(
+            ProductRequest.requested_for_location_id == filters.requested_for_location_id
+        )
+
+    if filters.created_from is not None:
+        query = query.where(ProductRequest.created_at >= filters.created_from)
+    if filters.created_to is not None:
+        query = query.where(ProductRequest.created_at <= filters.created_to)
+
+    result = await session.execute(query)
+    product_requests = list(result.scalars().all())
+    for product_request in product_requests:
+        setattr(
+            product_request,
+            "requested_for_location_name",
+            (
+                product_request.requested_for_location.name
+                if product_request.requested_for_location is not None
+                else None
+            ),
+        )
+        setattr(
+            product_request,
+            "requested_for_location_address",
+            (
+                product_request.requested_for_location.address
+                if product_request.requested_for_location is not None
+                else None
+            ),
+        )
+
+    return product_requests
 
 
 async def send_product_request_email_in_background(

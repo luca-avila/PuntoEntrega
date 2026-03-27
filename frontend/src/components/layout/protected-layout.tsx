@@ -5,14 +5,16 @@ import { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 
 const ownerNavigationItems = [
-  { to: "/entregas", label: "Historial" },
+  { to: "/entregas", label: "Historial de entregas" },
+  { to: "/pedidos", label: "Historial de pedidos" },
   { to: "/ubicaciones", label: "Ubicaciones" },
   { to: "/productos", label: "Productos" },
   { to: "/", label: "Inicio" },
 ];
 
 const memberNavigationItems = [
-  { to: "/entregas", label: "Historial" },
+  { to: "/entregas", label: "Historial de entregas" },
+  { to: "/pedidos", label: "Historial de pedidos" },
   { to: "/productos", label: "Solicitar productos" },
   { to: "/", label: "Inicio" },
 ];

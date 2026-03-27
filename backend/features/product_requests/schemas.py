@@ -58,6 +58,8 @@ class ProductRequestRead(BaseModel):
     organization_id: uuid.UUID
     requested_by_user_id: uuid.UUID
     requested_for_location_id: uuid.UUID | None
+    requested_for_location_name: str | None = None
+    requested_for_location_address: str | None = None
     subject: str
     message: str | None
     items: list[ProductRequestItemRead]
@@ -69,3 +71,19 @@ class ProductRequestRead(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProductRequestListFilters(BaseModel):
+    requested_for_location_id: uuid.UUID | None = None
+    created_from: datetime | None = None
+    created_to: datetime | None = None
+
+    @model_validator(mode="after")
+    def validate_date_range(self) -> "ProductRequestListFilters":
+        if (
+            self.created_from is not None
+            and self.created_to is not None
+            and self.created_from > self.created_to
+        ):
+            raise ValueError("La fecha desde debe ser menor o igual a la fecha hasta.")
+        return self

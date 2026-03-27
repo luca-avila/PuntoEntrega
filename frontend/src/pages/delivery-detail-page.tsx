@@ -90,7 +90,7 @@ export function DeliveryDetailPage() {
             Reintentar
           </Button>
           <Button onClick={() => navigate("/entregas")} type="button" variant="outline">
-            Volver al historial
+            Volver al historial de entregas
           </Button>
         </CardContent>
       </Card>
@@ -117,7 +117,7 @@ export function DeliveryDetailPage() {
 
         <div className="flex gap-2">
           <Button onClick={() => navigate("/entregas")} type="button" variant="outline">
-            Historial
+            Historial de entregas
           </Button>
           {isOwner ? (
             <Button onClick={() => navigate("/entregas/nueva")} type="button" variant="outline">
