@@ -1,11 +1,23 @@
 import os
+import shutil
+import tempfile
+from pathlib import Path
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-# Set required env vars before importing the app so Settings validation passes
+# Set required env vars before importing the app so Settings validation passes.
+# We force an isolated DB for tests by default so no real/dev DB is touched.
+_temp_test_db_dir: Path | None = None
+_test_database_url = os.getenv("TEST_DATABASE_URL")
+if _test_database_url:
+    os.environ["DATABASE_URL"] = _test_database_url
+else:
+    _temp_test_db_dir = Path(tempfile.mkdtemp(prefix="puntoentrega-tests-"))
+    _test_db_path = _temp_test_db_dir / "test.db"
+    os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_test_db_path}"
+
 os.environ.setdefault("SECRET_KEY", "test-secret-key-min-32-characters-long")
-os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///./test.db")
 os.environ["RESEND_API_KEY"] = ""
 os.environ["EMAIL_FROM"] = ""
 
@@ -22,6 +34,15 @@ async def setup_database():
     yield
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
+
+
+@pytest_asyncio.fixture(scope="session", autouse=True)
+async def cleanup_test_database_artifacts():
+    """Dispose DB connections and remove temporary DB artifacts after the test session."""
+    yield
+    await engine.dispose()
+    if _temp_test_db_dir is not None:
+        shutil.rmtree(_temp_test_db_dir, ignore_errors=True)
 
 
 @pytest_asyncio.fixture
