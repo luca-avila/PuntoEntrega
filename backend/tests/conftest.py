@@ -19,8 +19,13 @@ else:
     os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{_test_db_path}"
 
 os.environ.setdefault("SECRET_KEY", "test-secret-key-min-32-characters-long")
-os.environ["RESEND_API_KEY"] = ""
-os.environ["EMAIL_FROM"] = ""
+os.environ.setdefault("RESEND_API_KEY", "test-resend-api-key")
+os.environ.setdefault("EMAIL_FROM", "PuntoEntrega <test@example.com>")
+os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("LOG_LEVEL", "INFO")
+os.environ.setdefault("LOG_REQUESTS", "false")
+os.environ.setdefault("CORS_ORIGINS", '["http://localhost:5173"]')
+os.environ.setdefault("FRONTEND_URL", "http://localhost:5173")
 
 from app.api import app
 from core.config import settings
