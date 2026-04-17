@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from features.deliveries.models import EmailStatus, PaymentMethod
+from features.deliveries.models import PaymentMethod
 
 
 EMAIL_PATTERN = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
@@ -77,7 +77,6 @@ class DeliveryRead(BaseModel):
     payment_method: PaymentMethod
     payment_notes: str | None
     observations: str | None
-    email_status: EmailStatus
     created_at: datetime
     updated_at: datetime
     items: list[DeliveryItemRead]

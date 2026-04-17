@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from html import escape
 
-from features.auth.email import _send_email
+from features.notifications.email_provider import send_email
 
 ARGENTINA_TIMEZONE = timezone(timedelta(hours=-3), name="ART")
 
@@ -65,7 +65,7 @@ async def send_product_request_email(
     request_items: list[tuple[str, str]],
     requested_at: datetime,
 ) -> None:
-    await _send_email(
+    await send_email(
         to_email=to_email,
         subject=f"Nueva solicitud de producto - {organization_name}",
         html=_build_product_request_email_html(

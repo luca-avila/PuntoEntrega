@@ -1,5 +1,4 @@
 import hashlib
-import logging
 import secrets
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -12,20 +11,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.config import settings
-from core.errors import EmailSendError
 from features.auth.models import User
 from features.auth.service import UserManager
-from features.invitations.email import send_organization_invitation_email
 from features.invitations.models import InvitationStatus, OrganizationInvitation
+from features.notifications.outbox import (
+    EVENT_INVITATION_EMAIL_REQUESTED,
+    enqueue_notification_event,
+)
 from features.organizations.models import MembershipRole, OrganizationMembership
 from features.organizations.service import ensure_location_belongs_to_organization
 from features.invitations.schemas import (
     InvitationAcceptInfoStatus,
     OrganizationInvitationAcceptInfoRead,
 )
-
-logger = logging.getLogger(__name__)
-
 
 def _normalize_email(email: str) -> str:
     return email.strip().lower()
@@ -219,6 +217,25 @@ async def create_or_resend_invitation(
         invitation.status = InvitationStatus.PENDING
         invitation.accepted_at = None
 
+    await session.flush()
+    await enqueue_notification_event(
+        session,
+        event_type=EVENT_INVITATION_EMAIL_REQUESTED,
+        aggregate_type="organization_invitation",
+        aggregate_id=invitation.id,
+        organization_id=organization_id,
+        payload={
+            "invitation_id": str(invitation.id),
+            "to_email": normalized_email,
+            "organization_name": organization_name,
+            "token": raw_token,
+        },
+        deduplication_key=(
+            f"organization_invitation:{invitation.id}:"
+            f"{_hash_invitation_token(raw_token)}"
+        ),
+    )
+
     try:
         await session.commit()
     except Exception:
@@ -226,20 +243,6 @@ async def create_or_resend_invitation(
         raise
 
     await session.refresh(invitation)
-
-    try:
-        await send_organization_invitation_email(
-            to_email=normalized_email,
-            organization_name=organization_name,
-            token=raw_token,
-        )
-    except EmailSendError as exc:
-        logger.exception(
-            "Failed to send invitation email: invitation_id=%s to=%s error=%s",
-            invitation.id,
-            normalized_email,
-            exc,
-        )
 
     return invitation
 

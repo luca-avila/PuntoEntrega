@@ -4,6 +4,7 @@ import tempfile
 from pathlib import Path
 
 import pytest_asyncio
+import pytest
 from httpx import ASGITransport, AsyncClient
 
 # Set required env vars before importing the app so Settings validation passes.
@@ -22,8 +23,14 @@ os.environ["RESEND_API_KEY"] = ""
 os.environ["EMAIL_FROM"] = ""
 
 from app.api import app
+from core.config import settings
 from core.db import engine
 from features.auth.models import Base
+
+
+@pytest.fixture(autouse=True)
+def fast_notification_outbox_retries(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(settings, "NOTIFICATION_OUTBOX_RETRY_BASE_DELAY_SECONDS", 0.0)
 
 
 @pytest_asyncio.fixture(autouse=True)

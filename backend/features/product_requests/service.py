@@ -1,8 +1,5 @@
-import asyncio
-import logging
 import uuid
 from decimal import Decimal
-from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
@@ -10,11 +7,13 @@ from sqlalchemy.sql import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from core.db import async_session_maker
 from features.auth.models import User
+from features.notifications.outbox import (
+    EVENT_PRODUCT_REQUEST_OWNER_NOTIFICATION_REQUESTED,
+    enqueue_notification_event,
+)
 from features.organizations.models import MembershipRole, OrganizationMembership
 from features.organizations.service import ensure_products_belong_to_organization
-from features.product_requests.email import send_product_request_email
 from features.product_requests.models import (
     ProductRequest,
     ProductRequestEmailStatus,
@@ -22,10 +21,7 @@ from features.product_requests.models import (
 )
 from features.product_requests.schemas import ProductRequestListFilters
 
-logger = logging.getLogger(__name__)
-
 EMAIL_SEND_MAX_ATTEMPTS = 3
-EMAIL_SEND_RETRY_DELAY_SECONDS = 2.0
 EMAIL_LAST_ERROR_MAX_LENGTH = 2000
 
 
@@ -89,33 +85,6 @@ async def _get_owner_user_for_organization(
     return result.scalar_one_or_none()
 
 
-async def _set_product_request_failed(
-    session: AsyncSession,
-    product_request: ProductRequest,
-    *,
-    attempts: int,
-    error_message: str,
-) -> None:
-    product_request.email_status = ProductRequestEmailStatus.FAILED
-    product_request.email_attempts = attempts
-    product_request.email_last_error = _truncate_error_message(error_message)
-    product_request.email_sent_at = None
-    await session.commit()
-
-
-async def _set_product_request_sent(
-    session: AsyncSession,
-    product_request: ProductRequest,
-    *,
-    attempts: int,
-) -> None:
-    product_request.email_status = ProductRequestEmailStatus.SENT
-    product_request.email_attempts = attempts
-    product_request.email_last_error = None
-    product_request.email_sent_at = datetime.now(UTC)
-    await session.commit()
-
-
 async def create_product_request(
     session: AsyncSession,
     organization_id: uuid.UUID,
@@ -152,6 +121,17 @@ async def create_product_request(
                 quantity=quantity,
             )
         )
+
+    await enqueue_notification_event(
+        session,
+        event_type=EVENT_PRODUCT_REQUEST_OWNER_NOTIFICATION_REQUESTED,
+        aggregate_type="product_request",
+        aggregate_id=product_request.id,
+        organization_id=organization_id,
+        payload={"product_request_id": str(product_request.id)},
+        deduplication_key=f"product_request:{product_request.id}:owner_notification",
+        max_attempts=EMAIL_SEND_MAX_ATTEMPTS,
+    )
 
     await session.commit()
 
@@ -223,131 +203,3 @@ async def list_product_requests_for_organization(
         )
 
     return product_requests
-
-
-async def send_product_request_email_in_background(
-    product_request_id: uuid.UUID,
-) -> None:
-    for attempt in range(1, EMAIL_SEND_MAX_ATTEMPTS + 1):
-        async with async_session_maker() as session:
-            product_request = await _get_product_request_or_none(session, product_request_id)
-            if product_request is None:
-                logger.warning(
-                    "Product request not found during async email dispatch: request_id=%s",
-                    product_request_id,
-                )
-                return
-
-            if product_request.email_status in (
-                ProductRequestEmailStatus.SENT,
-                ProductRequestEmailStatus.FAILED,
-            ):
-                return
-
-            if product_request.organization is None:
-                await _set_product_request_failed(
-                    session,
-                    product_request,
-                    attempts=attempt,
-                    error_message="La organización de la solicitud no existe.",
-                )
-                return
-
-            owner = await _get_owner_user_for_organization(
-                session,
-                product_request.organization_id,
-            )
-            if (
-                owner is None
-                or not owner.is_active
-                or not owner.is_verified
-                or not owner.email
-                or not owner.email.strip()
-            ):
-                await _set_product_request_failed(
-                    session,
-                    product_request,
-                    attempts=attempt,
-                    error_message=_owner_not_sendable_reason(owner),
-                )
-                return
-
-            requester_email = (
-                product_request.requested_by_user.email
-                if product_request.requested_by_user is not None
-                else str(product_request.requested_by_user_id)
-            )
-            requested_for_location_name = (
-                product_request.requested_for_location.name
-                if product_request.requested_for_location is not None
-                else "Sin ubicación asignada"
-            )
-            requested_for_location_address = (
-                product_request.requested_for_location.address
-                if product_request.requested_for_location is not None
-                else "Sin dirección"
-            )
-            request_items = [
-                (
-                    item.product.name if item.product is not None else str(item.product_id),
-                    _format_quantity_for_email(item.quantity),
-                )
-                for item in product_request.items
-            ]
-            if not request_items:
-                request_items = [("Sin productos especificados", "-")]
-
-            try:
-                await send_product_request_email(
-                    to_email=owner.email.strip(),
-                    organization_name=product_request.organization.name,
-                    requester_email=requester_email,
-                    requested_for_location_name=requested_for_location_name,
-                    requested_for_location_address=requested_for_location_address,
-                    request_subject=product_request.subject,
-                    request_message=product_request.message,
-                    request_items=request_items,
-                    requested_at=product_request.created_at,
-                )
-                await _set_product_request_sent(
-                    session,
-                    product_request,
-                    attempts=attempt,
-                )
-                return
-            except Exception as exc:
-                await session.rollback()
-                logger.exception(
-                    "Product request email attempt failed: request_id=%s attempt=%s error=%s",
-                    product_request_id,
-                    attempt,
-                    exc,
-                )
-
-                if attempt >= EMAIL_SEND_MAX_ATTEMPTS:
-                    try:
-                        latest_product_request = await _get_product_request_or_none(
-                            session,
-                            product_request_id,
-                        )
-                        if (
-                            latest_product_request is not None
-                            and latest_product_request.email_status
-                            != ProductRequestEmailStatus.SENT
-                        ):
-                            await _set_product_request_failed(
-                                session,
-                                latest_product_request,
-                                attempts=attempt,
-                                error_message=str(exc),
-                            )
-                    except Exception as status_exc:
-                        await session.rollback()
-                        logger.exception(
-                            "Failed to persist failed product request email status: request_id=%s error=%s",
-                            product_request_id,
-                            status_exc,
-                        )
-                    return
-
-        await asyncio.sleep(EMAIL_SEND_RETRY_DELAY_SECONDS)

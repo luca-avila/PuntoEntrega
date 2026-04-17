@@ -4,7 +4,12 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
 
+from core.db import async_session_maker
+from features.notifications.models import NotificationOutboxEvent, NotificationOutboxStatus
+from features.notifications.outbox import EVENT_DELIVERY_SUMMARY_EMAIL_REQUESTED
+from features.notifications.worker import process_pending_events
 from tests.test_locations import setup_authenticated_user_with_organization
 from tests.test_products import build_product_payload
 
@@ -15,7 +20,7 @@ def mock_delivery_email_success(monkeypatch: pytest.MonkeyPatch):
         return None
 
     monkeypatch.setattr(
-        "features.deliveries.service.send_delivery_summary_email",
+        "features.deliveries.emails.send_delivery_summary_email",
         _success_sender,
     )
 
@@ -53,23 +58,30 @@ async def create_product(
     return response.json()
 
 
-async def wait_for_delivery_status(
-    client: AsyncClient,
+async def wait_for_delivery_notification_status(
     delivery_id: str,
-    expected_status: str,
+    expected_status: NotificationOutboxStatus,
     *,
     attempts: int = 10,
     delay_seconds: float = 0.05,
-) -> dict[str, object]:
+) -> NotificationOutboxEvent:
+    delivery_uuid = uuid.UUID(delivery_id)
     for _ in range(attempts):
-        response = await client.get(f"/deliveries/{delivery_id}")
-        assert response.status_code == 200
-        payload = response.json()
-        if payload["email_status"] == expected_status:
-            return payload
+        await process_pending_events()
+        async with async_session_maker() as session:
+            result = await session.execute(
+                select(NotificationOutboxEvent).where(
+                    NotificationOutboxEvent.event_type
+                    == EVENT_DELIVERY_SUMMARY_EMAIL_REQUESTED,
+                    NotificationOutboxEvent.aggregate_id == delivery_uuid,
+                )
+            )
+            event = result.scalar_one_or_none()
+            if event is not None and event.status == expected_status:
+                return event
         await asyncio.sleep(delay_seconds)
     raise AssertionError(
-        f"Delivery {delivery_id} did not reach status {expected_status} "
+        f"Delivery {delivery_id} notification did not reach status {expected_status.value} "
         f"after {attempts} attempts."
     )
 
@@ -113,7 +125,7 @@ class TestDeliveriesCrud:
         delivery_id = created_delivery["id"]
         assert created_delivery["location_id"] == location["id"]
         assert created_delivery["payment_method"] == "transfer"
-        assert created_delivery["email_status"] == "pending"
+        assert "email_status" not in created_delivery
         assert len(created_delivery["items"]) == 1
 
         list_response = await client.get("/deliveries")
@@ -122,8 +134,15 @@ class TestDeliveriesCrud:
         assert len(listed_deliveries) == 1
         assert listed_deliveries[0]["id"] == delivery_id
 
-        fetched_delivery = await wait_for_delivery_status(client, delivery_id, "sent")
+        await wait_for_delivery_notification_status(
+            delivery_id,
+            NotificationOutboxStatus.PROCESSED,
+        )
+        get_response = await client.get(f"/deliveries/{delivery_id}")
+        assert get_response.status_code == 200
+        fetched_delivery = get_response.json()
         assert fetched_delivery["id"] == delivery_id
+        assert "email_status" not in fetched_delivery
         assert fetched_delivery["items"][0]["product_id"] == product["id"]
 
     async def test_create_delivery_uses_summary_recipient_email_override(
@@ -137,7 +156,7 @@ class TestDeliveriesCrud:
             captured["summary_recipient_email"] = summary_recipient_email
 
         monkeypatch.setattr(
-            "features.deliveries.service.send_delivery_summary_email",
+            "features.deliveries.emails.send_delivery_summary_email",
             _capture_sender,
         )
 
@@ -161,10 +180,13 @@ class TestDeliveriesCrud:
         assert response.status_code == 201
         delivery_id = response.json()["id"]
 
-        await wait_for_delivery_status(client, delivery_id, "sent")
+        await wait_for_delivery_notification_status(
+            delivery_id,
+            NotificationOutboxStatus.PROCESSED,
+        )
         assert captured["summary_recipient_email"] == summary_recipient_email
 
-    async def test_email_failure_keeps_delivery_and_sets_failed_status(
+    async def test_email_failure_keeps_delivery_and_marks_outbox_failed(
         self,
         client: AsyncClient,
         monkeypatch: pytest.MonkeyPatch,
@@ -173,7 +195,7 @@ class TestDeliveriesCrud:
             raise RuntimeError("smtp down")
 
         monkeypatch.setattr(
-            "features.deliveries.service.send_delivery_summary_email",
+            "features.deliveries.emails.send_delivery_summary_email",
             _failing_sender,
         )
 
@@ -195,10 +217,17 @@ class TestDeliveriesCrud:
         )
         assert response.status_code == 201
         delivery = response.json()
-        assert delivery["email_status"] == "pending"
+        assert "email_status" not in delivery
 
-        persisted_delivery = await wait_for_delivery_status(client, delivery["id"], "failed")
-        assert persisted_delivery["id"] == delivery["id"]
+        event = await wait_for_delivery_notification_status(
+            delivery["id"],
+            NotificationOutboxStatus.FAILED,
+        )
+        assert event.aggregate_id == uuid.UUID(delivery["id"])
+
+        get_response = await client.get(f"/deliveries/{delivery['id']}")
+        assert get_response.status_code == 200
+        assert get_response.json()["id"] == delivery["id"]
 
     async def test_create_delivery_requires_items(self, client: AsyncClient):
         user_email = "deliveries-missing-items@example.com"

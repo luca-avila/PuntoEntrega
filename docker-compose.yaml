@@ -32,5 +32,26 @@ services:
     ports:
       - "127.0.0.1:8002:8000"
 
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    command: ["uv", "run", "python", "-m", "worker.main"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      FRONTEND_URL: ${FRONTEND_URL:-https://puntoentrega.online}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      EMAIL_FROM: ${EMAIL_FROM}
+      NOTIFICATION_WORKER_POLL_INTERVAL_SECONDS: ${NOTIFICATION_WORKER_POLL_INTERVAL_SECONDS:-5}
+      NOTIFICATION_WORKER_BATCH_SIZE: ${NOTIFICATION_WORKER_BATCH_SIZE:-10}
+      NOTIFICATION_OUTBOX_MAX_ATTEMPTS: ${NOTIFICATION_OUTBOX_MAX_ATTEMPTS:-5}
+      NOTIFICATION_OUTBOX_RETRY_BASE_DELAY_SECONDS: ${NOTIFICATION_OUTBOX_RETRY_BASE_DELAY_SECONDS:-60}
+      NOTIFICATION_OUTBOX_PROCESSING_TIMEOUT_SECONDS: ${NOTIFICATION_OUTBOX_PROCESSING_TIMEOUT_SECONDS:-300}
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:

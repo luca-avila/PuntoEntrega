@@ -31,12 +31,6 @@ class PaymentMethod(str, enum.Enum):
     OTHER = "other"
 
 
-class EmailStatus(str, enum.Enum):
-    PENDING = "pending"
-    SENT = "sent"
-    FAILED = "failed"
-
-
 class Delivery(Base):
     __tablename__ = "deliveries"
 
@@ -71,19 +65,6 @@ class Delivery(Base):
     )
     payment_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     observations: Mapped[str | None] = mapped_column(Text, nullable=True)
-    email_status: Mapped[EmailStatus] = mapped_column(
-        SAEnum(
-            EmailStatus,
-            name="email_status_enum",
-            native_enum=False,
-            create_constraint=True,
-            validate_strings=True,
-            values_callable=lambda enum_cls: [item.value for item in enum_cls],
-        ),
-        nullable=False,
-        default=EmailStatus.PENDING,
-        server_default=EmailStatus.PENDING.value,
-    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

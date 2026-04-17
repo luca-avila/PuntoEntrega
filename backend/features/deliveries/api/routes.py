@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -11,7 +11,6 @@ from features.deliveries.service import (
     create_delivery_for_organization,
     get_delivery_for_organization,
     list_deliveries_for_organization,
-    send_delivery_summary_email_in_background,
 )
 from features.organizations.service import (
     OrganizationUserContext,
@@ -61,7 +60,6 @@ async def list_deliveries(
 @router.post("", response_model=DeliveryRead, status_code=status.HTTP_201_CREATED)
 async def create_delivery(
     payload: DeliveryCreate,
-    background_tasks: BackgroundTasks,
     context: OrganizationUserContext = Depends(require_organization_owner),
     session: AsyncSession = Depends(get_async_session),
 ):
@@ -69,11 +67,6 @@ async def create_delivery(
         session=session,
         organization_id=context.organization.id,
         payload=payload,
-    )
-    background_tasks.add_task(
-        send_delivery_summary_email_in_background,
-        delivery.id,
-        payload.summary_recipient_email,
     )
     return delivery
 

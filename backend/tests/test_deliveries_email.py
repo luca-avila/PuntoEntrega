@@ -3,7 +3,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 from uuid import UUID, uuid4
 
-from features.deliveries.email import (
+from features.deliveries.emails import (
     _build_delivery_summary_html,
     _build_delivery_summary_subject,
     _format_delivered_at_for_argentina,

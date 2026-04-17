@@ -20,7 +20,7 @@ def mock_delivery_email_success(monkeypatch: pytest.MonkeyPatch):
         return None
 
     monkeypatch.setattr(
-        "features.deliveries.service.send_delivery_summary_email",
+        "features.deliveries.emails.send_delivery_summary_email",
         _success_sender,
     )
 

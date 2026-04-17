@@ -5,10 +5,10 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.sql.elements import ColumnElement
 
-import features.auth.service as auth_service
 from core.db import async_session_maker
 from core.errors import EmailSendError
 from features.auth.models import User
+from features.notifications.worker import process_pending_events
 
 USER_EMAIL = "test@example.com"
 USER_PASSWORD = "StrongPass123!"
@@ -138,15 +138,20 @@ class TestLogin:
         async def fake_send_verify_email(email: str, token: str) -> None:
             sent_calls.append((email, token))
 
-        monkeypatch.setattr(auth_service, "send_verify_email", fake_send_verify_email)
+        monkeypatch.setattr(
+            "features.auth.emails.send_verify_email",
+            fake_send_verify_email,
+        )
 
         register_response = await register_user(client)
         assert register_response.status_code == 201
+        await process_pending_events()
         assert len(sent_calls) == 1
 
         response = await login_user(client)
         assert response.status_code == 400
         assert response.json()["detail"] == "LOGIN_USER_NOT_VERIFIED"
+        await process_pending_events()
         assert len(sent_calls) == 1
 
     async def test_login_wrong_password(self, client: AsyncClient):
@@ -210,15 +215,19 @@ class TestEmailFlows:
         async def fake_send_verify_email(email: str, token: str) -> None:
             sent_calls.append((email, token))
 
-        monkeypatch.setattr(auth_service, "send_verify_email", fake_send_verify_email)
+        monkeypatch.setattr(
+            "features.auth.emails.send_verify_email",
+            fake_send_verify_email,
+        )
 
         response = await register_user(client)
         assert response.status_code == 201
+        await process_pending_events()
         assert len(sent_calls) == 1
         assert sent_calls[0][0] == USER_EMAIL
         assert sent_calls[0][1]
 
-    async def test_register_email_failure_does_not_set_verify_resend_cooldown(
+    async def test_register_email_failure_keeps_verify_resend_cooldown_after_enqueue(
         self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
     ):
         sent_calls: list[tuple[str, str]] = []
@@ -227,16 +236,20 @@ class TestEmailFlows:
             sent_calls.append((email, token))
             raise EmailSendError("resend unavailable")
 
-        monkeypatch.setattr(auth_service, "send_verify_email", fake_send_verify_email)
+        monkeypatch.setattr(
+            "features.auth.emails.send_verify_email",
+            fake_send_verify_email,
+        )
 
         register_response = await register_user(client)
         assert register_response.status_code == 201
+        await process_pending_events()
         assert len(sent_calls) == 1
 
         login_response = await login_user(client)
         assert login_response.status_code == 400
         assert login_response.json()["detail"] == "LOGIN_USER_NOT_VERIFIED"
-        assert len(sent_calls) == 2
+        assert len(sent_calls) == 1
 
     async def test_request_verify_token_sends_email_for_existing_user(
         self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
@@ -246,14 +259,19 @@ class TestEmailFlows:
         async def fake_send_verify_email(email: str, token: str) -> None:
             sent_calls.append((email, token))
 
-        monkeypatch.setattr(auth_service, "send_verify_email", fake_send_verify_email)
+        monkeypatch.setattr(
+            "features.auth.emails.send_verify_email",
+            fake_send_verify_email,
+        )
 
         register_response = await register_user(client)
         assert register_response.status_code == 201
+        await process_pending_events()
 
         sent_calls.clear()
         response = await client.post("/auth/request-verify-token", json={"email": USER_EMAIL})
         assert response.status_code in (200, 202)
+        await process_pending_events()
         assert len(sent_calls) == 1
         assert sent_calls[0][0] == USER_EMAIL
         assert sent_calls[0][1]
@@ -266,13 +284,17 @@ class TestEmailFlows:
         async def fake_send_reset_password_email(email: str, token: str) -> None:
             sent_calls.append((email, token))
 
-        monkeypatch.setattr(auth_service, "send_reset_password_email", fake_send_reset_password_email)
+        monkeypatch.setattr(
+            "features.auth.emails.send_reset_password_email",
+            fake_send_reset_password_email,
+        )
 
         register_response = await register_user(client)
         assert register_response.status_code == 201
 
         response = await client.post("/auth/forgot-password", json={"email": USER_EMAIL})
         assert response.status_code in (200, 202)
+        await process_pending_events()
         assert len(sent_calls) == 1
         assert sent_calls[0][0] == USER_EMAIL
         assert sent_calls[0][1]
@@ -283,13 +305,17 @@ class TestEmailFlows:
         async def fake_send_reset_password_email(email: str, token: str) -> None:
             raise EmailSendError("resend unavailable")
 
-        monkeypatch.setattr(auth_service, "send_reset_password_email", fake_send_reset_password_email)
+        monkeypatch.setattr(
+            "features.auth.emails.send_reset_password_email",
+            fake_send_reset_password_email,
+        )
 
         register_response = await register_user(client)
         assert register_response.status_code == 201
 
         response = await client.post("/auth/forgot-password", json={"email": USER_EMAIL})
         assert response.status_code in (200, 202)
+        await process_pending_events()
 
     async def test_forgot_password_nonexistent_user_does_not_send_email(
         self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
@@ -299,7 +325,10 @@ class TestEmailFlows:
         async def fake_send_reset_password_email(email: str, token: str) -> None:
             sent_calls.append((email, token))
 
-        monkeypatch.setattr(auth_service, "send_reset_password_email", fake_send_reset_password_email)
+        monkeypatch.setattr(
+            "features.auth.emails.send_reset_password_email",
+            fake_send_reset_password_email,
+        )
 
         response = await client.post("/auth/forgot-password", json={"email": "missing@example.com"})
         assert response.status_code in (200, 202)

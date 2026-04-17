@@ -5,8 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useAuth } from "@/hooks/use-auth";
 import {
   formatDeliveryDateTime,
-  getDeliveryEmailStatusClassName,
-  getDeliveryEmailStatusLabel,
   getDeliveryPaymentMethodLabel,
 } from "@/features/deliveries/display";
 import { getApiErrorMessage } from "@/lib/errors";
@@ -129,15 +127,8 @@ export function DeliveryDetailPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex flex-wrap items-center gap-2 text-lg">
+          <CardTitle className="text-lg">
             {location?.name ?? delivery.location_name ?? "Ubicación"}
-            <span
-              className={`status-chip ${getDeliveryEmailStatusClassName(
-                delivery.email_status,
-              )}`}
-            >
-              Email: {getDeliveryEmailStatusLabel(delivery.email_status)}
-            </span>
           </CardTitle>
           <CardDescription>{location?.address ?? delivery.location_address ?? "Sin dirección"}</CardDescription>
         </CardHeader>

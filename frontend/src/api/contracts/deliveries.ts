@@ -2,8 +2,6 @@ import type { DecimalValue, ISODateTime, UUID } from "@/api/contracts/common";
 
 export type PaymentMethod = "cash" | "transfer" | "current_account" | "other";
 
-export type EmailStatus = "pending" | "sent" | "failed";
-
 export interface DeliveryItemCreateRequest {
   product_id: UUID;
   quantity: DecimalValue;
@@ -35,7 +33,6 @@ export interface DeliveryRead {
   payment_method: PaymentMethod;
   payment_notes: string | null;
   observations: string | null;
-  email_status: EmailStatus;
   created_at: ISODateTime;
   updated_at: ISODateTime;
   items: DeliveryItemRead[];

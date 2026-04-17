@@ -8,8 +8,6 @@ import { Select } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
 import {
   formatDeliveryDateTime,
-  getDeliveryEmailStatusClassName,
-  getDeliveryEmailStatusLabel,
   getDeliveryPaymentMethodLabel,
 } from "@/features/deliveries/display";
 import { getApiErrorMessage } from "@/lib/errors";
@@ -164,7 +162,7 @@ export function DeliveriesHistoryPage() {
       <div className="page-header">
         <h2 className="page-title">Historial de entregas</h2>
         <p className="page-description">
-          Revisá entregas registradas y estado de envío de email.
+          Revisá entregas registradas por ubicación y fecha.
         </p>
       </div>
 
@@ -290,16 +288,7 @@ export function DeliveriesHistoryPage() {
             return (
               <Card key={delivery.id}>
                 <CardHeader>
-                  <CardTitle className="flex flex-wrap items-center gap-2 text-base">
-                    {locationName}
-                    <span
-                      className={`status-chip ${getDeliveryEmailStatusClassName(
-                        delivery.email_status,
-                      )}`}
-                    >
-                      Email: {getDeliveryEmailStatusLabel(delivery.email_status)}
-                    </span>
-                  </CardTitle>
+                  <CardTitle className="text-base">{locationName}</CardTitle>
                   <CardDescription>
                     {formatDeliveryDateTime(delivery.delivered_at)} ·{" "}
                     {getDeliveryPaymentMethodLabel(delivery.payment_method)}

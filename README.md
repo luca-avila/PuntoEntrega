@@ -118,9 +118,16 @@ npm run build
 5. Member solicita producto desde `/productos`.
 6. Owner recibe email de solicitud y puede auditar requests por backend.
 
-## Regla de email en entregas
+## Regla de emails operativos
 
-Al crear una entrega, primero se persiste en base de datos y luego se intenta enviar email resumen.
+Los emails operativos se publican en un outbox transaccional en PostgreSQL.
+La API persiste el cambio de negocio y el evento de notificación en la misma
+transacción; un proceso worker separado toma eventos pendientes y envía los
+emails con reintentos.
 
-- Envío exitoso: `email_status = sent`
-- Envío fallido: la entrega se conserva y `email_status = failed`
+- Estado inicial: `email_status = pending`
+- Envío exitoso del worker: `email_status = sent`
+- Reintentos agotados o fallo no recuperable: `email_status = failed`
+
+En Docker Compose, el servicio `worker` corre el procesador de outbox junto al
+servicio `backend`.

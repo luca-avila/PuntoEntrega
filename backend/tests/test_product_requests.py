@@ -9,6 +9,8 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from core.db import async_session_maker
 from features.auth.models import User
+from features.notifications.models import NotificationOutboxEvent
+from features.notifications.worker import process_pending_events
 from features.organizations.models import OrganizationMembership
 from features.product_requests.models import ProductRequest, ProductRequestEmailStatus
 from tests.test_locations import (
@@ -21,17 +23,12 @@ from tests.test_products import build_product_payload
 
 
 @pytest.fixture(autouse=True)
-def fast_product_request_email_retries(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr("features.product_requests.service.EMAIL_SEND_RETRY_DELAY_SECONDS", 0.0)
-
-
-@pytest.fixture(autouse=True)
 def mock_product_request_email_success(monkeypatch: pytest.MonkeyPatch):
     async def _success_sender(**_kwargs):
         return None
 
     monkeypatch.setattr(
-        "features.product_requests.service.send_product_request_email",
+        "features.product_requests.emails.send_product_request_email",
         _success_sender,
     )
 
@@ -93,6 +90,7 @@ async def wait_for_product_request_status_in_db(
     delay_seconds: float = 0.05,
 ) -> dict[str, object]:
     for _ in range(attempts):
+        await process_pending_events()
         async with async_session_maker() as session:
             product_request = await session.get(ProductRequest, product_request_id)
             if (
@@ -408,16 +406,7 @@ class TestProductRequestsEmailStatus:
     async def test_creation_persists_pending_before_background_send(
         self,
         client: AsyncClient,
-        monkeypatch: pytest.MonkeyPatch,
     ):
-        async def _noop_background(_product_request_id: uuid.UUID) -> None:
-            return None
-
-        monkeypatch.setattr(
-            "features.product_requests.api.routes.send_product_request_email_in_background",
-            _noop_background,
-        )
-
         _owner_email, member_email, _organization_id, product_id = await setup_owner_and_member(
             client,
             owner_email="pr-owner-pending@example.com",
@@ -442,11 +431,23 @@ class TestProductRequestsEmailStatus:
 
         async with async_session_maker() as session:
             persisted_request = await session.get(ProductRequest, product_request_id)
+            outbox_events = list(
+                (
+                    await session.execute(
+                        select(NotificationOutboxEvent).where(
+                            NotificationOutboxEvent.aggregate_id == product_request_id
+                        )
+                    )
+                )
+                .scalars()
+                .all()
+            )
 
         assert persisted_request is not None
         assert persisted_request.email_status == ProductRequestEmailStatus.PENDING
         assert persisted_request.email_attempts == 0
         assert persisted_request.email_sent_at is None
+        assert len(outbox_events) == 1
 
     async def test_email_failure_marks_request_as_failed_and_keeps_record(
         self,
@@ -457,7 +458,7 @@ class TestProductRequestsEmailStatus:
             raise RuntimeError("smtp down")
 
         monkeypatch.setattr(
-            "features.product_requests.service.send_product_request_email",
+            "features.product_requests.emails.send_product_request_email",
             _failing_sender,
         )
         monkeypatch.setattr("features.product_requests.service.EMAIL_SEND_MAX_ATTEMPTS", 2)

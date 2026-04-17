@@ -10,6 +10,10 @@ from sqlalchemy.sql.elements import ColumnElement
 from core.db import async_session_maker
 from features.auth.models import User
 from features.invitations.models import InvitationStatus, OrganizationInvitation
+from features.notifications.outbox import (
+    EVENT_INVITATION_EMAIL_REQUESTED,
+    enqueue_notification_event as real_enqueue_notification_event,
+)
 from features.organizations.models import MembershipRole, OrganizationMembership
 from tests.test_locations import (
     build_location_payload,
@@ -25,18 +29,21 @@ from tests.test_locations import (
 def sent_invitation_emails(monkeypatch: pytest.MonkeyPatch):
     sent_items: list[dict[str, str]] = []
 
-    async def _capture_send(to_email: str, organization_name: str, token: str) -> None:
-        sent_items.append(
-            {
-                "to_email": to_email,
-                "organization_name": organization_name,
-                "token": token,
-            }
-        )
+    async def _capture_enqueue(*args, **kwargs):
+        if kwargs.get("event_type") == EVENT_INVITATION_EMAIL_REQUESTED:
+            payload = kwargs["payload"]
+            sent_items.append(
+                {
+                    "to_email": payload["to_email"],
+                    "organization_name": payload["organization_name"],
+                    "token": payload["token"],
+                }
+            )
+        return await real_enqueue_notification_event(*args, **kwargs)
 
     monkeypatch.setattr(
-        "features.invitations.service.send_organization_invitation_email",
-        _capture_send,
+        "features.invitations.service.enqueue_notification_event",
+        _capture_enqueue,
     )
 
     return sent_items

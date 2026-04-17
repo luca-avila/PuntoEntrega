@@ -1,6 +1,7 @@
 import logging
 import re
 import uuid
+import hashlib
 from datetime import UTC, datetime, timedelta
 from typing import Any, cast
 
@@ -19,9 +20,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import settings
 from core.db import get_async_session
-from core.errors import EmailSendError
-from features.auth.email import send_reset_password_email, send_verify_email
 from features.auth.models import User
+from features.notifications.outbox import (
+    EVENT_AUTH_PASSWORD_RESET_REQUESTED,
+    EVENT_AUTH_VERIFY_EMAIL_REQUESTED,
+    enqueue_notification_event,
+)
 
 logger = logging.getLogger(__name__)
 VERIFY_EMAIL_TOKEN_LIFETIME_SECONDS = 3600
@@ -150,10 +154,26 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         """Hook called after password reset request."""
         logger.info("User %s has requested a password reset.", user.id)
         try:
-            await send_reset_password_email(user.email, token)
-        except EmailSendError as exc:
+            user_db = cast(SQLAlchemyUserDatabase, self.user_db)
+            await enqueue_notification_event(
+                user_db.session,
+                event_type=EVENT_AUTH_PASSWORD_RESET_REQUESTED,
+                aggregate_type="user",
+                aggregate_id=user.id,
+                organization_id=None,
+                payload={"user_id": str(user.id), "email": user.email, "token": token},
+                deduplication_key=(
+                    f"user:{user.id}:password_reset:"
+                    f"{hashlib.sha256(token.encode('utf-8')).hexdigest()}:"
+                    f"{uuid.uuid4()}"
+                ),
+            )
+            await user_db.session.commit()
+        except Exception as exc:
+            user_db = cast(SQLAlchemyUserDatabase, self.user_db)
+            await user_db.session.rollback()
             logger.exception(
-                "Failed to send reset-password email: user_id=%s email=%s error=%s",
+                "Failed to enqueue reset-password email: user_id=%s email=%s error=%s",
                 user.id,
                 user.email,
                 exc,
@@ -163,10 +183,26 @@ class UserManager(UUIDIDMixin, BaseUserManager[User, uuid.UUID]):
         """Hook called after email verification request."""
         logger.info("User %s has requested email verification.", user.id)
         try:
-            await send_verify_email(user.email, token)
-        except EmailSendError as exc:
+            user_db = cast(SQLAlchemyUserDatabase, self.user_db)
+            await enqueue_notification_event(
+                user_db.session,
+                event_type=EVENT_AUTH_VERIFY_EMAIL_REQUESTED,
+                aggregate_type="user",
+                aggregate_id=user.id,
+                organization_id=None,
+                payload={"user_id": str(user.id), "email": user.email, "token": token},
+                deduplication_key=(
+                    f"user:{user.id}:verify_email:"
+                    f"{hashlib.sha256(token.encode('utf-8')).hexdigest()}:"
+                    f"{uuid.uuid4()}"
+                ),
+            )
+            await user_db.session.commit()
+        except Exception as exc:
+            user_db = cast(SQLAlchemyUserDatabase, self.user_db)
+            await user_db.session.rollback()
             logger.exception(
-                "Failed to send verification email: user_id=%s email=%s error=%s",
+                "Failed to enqueue verification email: user_id=%s email=%s error=%s",
                 user.id,
                 user.email,
                 exc,

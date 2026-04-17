@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,7 +20,6 @@ from features.product_requests.schemas import (
 from features.product_requests.service import (
     create_product_request,
     list_product_requests_for_organization,
-    send_product_request_email_in_background,
 )
 
 router = APIRouter()
@@ -33,7 +32,6 @@ router = APIRouter()
 )
 async def create_product_request_endpoint(
     payload: ProductRequestCreate,
-    background_tasks: BackgroundTasks,
     context: OrganizationUserContext = Depends(require_organization_member),
     session: AsyncSession = Depends(get_async_session),
 ):
@@ -55,10 +53,6 @@ async def create_product_request_endpoint(
         subject=payload.subject,
         message=payload.message,
         items=[(item.product_id, item.quantity) for item in payload.items],
-    )
-    background_tasks.add_task(
-        send_product_request_email_in_background,
-        product_request.id,
     )
     return product_request
 

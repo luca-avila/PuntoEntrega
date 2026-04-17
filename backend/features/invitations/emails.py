@@ -1,15 +1,12 @@
-from urllib.parse import urlencode
-
-from core.config import settings
 from core.errors import EmailSendError
-from features.auth.email import _normalize_frontend_base_url, _send_email
+from core.frontend_urls import build_frontend_action_url
+from features.notifications.email_provider import send_email
 
 INVITATION_ACCEPT_PATH = "/aceptar-invitacion"
 
 
 def _build_invitation_accept_url(token: str) -> str:
-    frontend_base = _normalize_frontend_base_url(settings.FRONTEND_URL)
-    return f"{frontend_base}{INVITATION_ACCEPT_PATH}?{urlencode({'token': token})}"
+    return build_frontend_action_url(INVITATION_ACCEPT_PATH, token)
 
 
 def _build_invitation_email_html(
@@ -36,7 +33,7 @@ async def send_organization_invitation_email(
     except ValueError as exc:
         raise EmailSendError(f"Invalid invitation URL config: {exc}") from exc
 
-    await _send_email(
+    await send_email(
         to_email=to_email,
         subject=f"Invitación a {organization_name} en PuntoEntrega",
         html=_build_invitation_email_html(organization_name, accept_url),

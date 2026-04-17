@@ -1,19 +1,13 @@
-import asyncio
-import json
 import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from urllib import request
-from urllib.error import HTTPError, URLError
 
-from core.config import settings
-from core.errors import EmailSendError
 from features.deliveries.models import Delivery
+from features.notifications.email_provider import send_email
 
 logger = logging.getLogger(__name__)
 
-RESEND_API_URL = "https://api.resend.com/emails"
 ARGENTINA_TIMEZONE = timezone(timedelta(hours=-3), name="ART")
 
 PAYMENT_METHOD_LABELS_ES = {
@@ -22,26 +16,6 @@ PAYMENT_METHOD_LABELS_ES = {
     "current_account": "Cuenta corriente",
     "other": "Otro",
 }
-
-
-def _extract_resend_error_detail(raw_body: str) -> str:
-    if not raw_body:
-        return ""
-    try:
-        payload = json.loads(raw_body)
-    except json.JSONDecodeError:
-        return raw_body
-
-    if isinstance(payload, dict):
-        message = payload.get("message")
-        name = payload.get("name")
-        if isinstance(message, str) and isinstance(name, str):
-            return f"{name}: {message}"
-        if isinstance(message, str):
-            return message
-        if isinstance(name, str):
-            return name
-    return raw_body
 
 
 def _payment_method_label_es(payment_method: str) -> str:
@@ -133,48 +107,11 @@ async def send_delivery_summary_email(
     if not recipient:
         raise ValueError("summary_recipient_email is required.")
 
-    if not settings.RESEND_API_KEY:
-        raise EmailSendError("RESEND_API_KEY is not set.")
-
-    if not settings.EMAIL_FROM:
-        raise EmailSendError("EMAIL_FROM is not set.")
-
     subject = _build_delivery_summary_subject(delivery)
 
-    payload = json.dumps(
-        {
-            "from": settings.EMAIL_FROM,
-            "to": [recipient],
-            "subject": subject,
-            "html": _build_delivery_summary_html(delivery),
-        }
-    ).encode("utf-8")
-
-    headers = {
-        "Authorization": f"Bearer {settings.RESEND_API_KEY}",
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "User-Agent": "punto-entrega/1.0",
-    }
-
-    req = request.Request(RESEND_API_URL, data=payload, headers=headers, method="POST")
-
-    try:
-        await asyncio.to_thread(request.urlopen, req, timeout=10)
-        logger.info("Delivery summary email sent: delivery_id=%s recipient=%s", delivery.id, recipient)
-    except HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="ignore")
-        request_id = exc.headers.get("x-request-id", "") if exc.headers else ""
-        detail = _extract_resend_error_detail(body)
-        raise EmailSendError(
-            "Resend HTTP error: "
-            f"status={exc.code} reason={exc.reason} request_id={request_id} "
-            f"detail={detail} from={settings.EMAIL_FROM} to={recipient} "
-            f"subject={subject}"
-        ) from exc
-    except URLError as exc:
-        raise EmailSendError(
-            "Resend network error: "
-            f"reason={exc.reason} from={settings.EMAIL_FROM} to={recipient} "
-            f"subject={subject}"
-        ) from exc
+    await send_email(
+        to_email=recipient,
+        subject=subject,
+        html=_build_delivery_summary_html(delivery),
+    )
+    logger.info("Delivery summary email sent: delivery_id=%s recipient=%s", delivery.id, recipient)

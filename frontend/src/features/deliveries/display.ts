@@ -7,34 +7,6 @@ export function formatDeliveryDateTime(value: string): string {
   }).format(new Date(value));
 }
 
-export function getDeliveryEmailStatusLabel(
-  status: DeliveryRead["email_status"],
-): string {
-  if (status === "sent") {
-    return "Enviado";
-  }
-
-  if (status === "failed") {
-    return "Fallido";
-  }
-
-  return "Pendiente";
-}
-
-export function getDeliveryEmailStatusClassName(
-  status: DeliveryRead["email_status"],
-): string {
-  if (status === "sent") {
-    return "status-chip-success";
-  }
-
-  if (status === "failed") {
-    return "status-chip-danger";
-  }
-
-  return "status-chip-muted";
-}
-
 export function getDeliveryPaymentMethodLabel(
   paymentMethod: DeliveryRead["payment_method"],
 ): string {
