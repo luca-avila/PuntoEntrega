@@ -1,3 +1,18 @@
+x-backend-image: &backend-image
+  build: ./backend
+  image: puntoentrega-backend:${BACKEND_IMAGE_TAG:-local}
+
+x-backend-env: &backend-env
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+  SECRET_KEY: ${SECRET_KEY}
+  ENVIRONMENT: ${ENVIRONMENT}
+  LOG_LEVEL: ${LOG_LEVEL}
+  LOG_REQUESTS: ${LOG_REQUESTS}
+  CORS_ORIGINS: ${CORS_ORIGINS}
+  FRONTEND_URL: ${FRONTEND_URL}
+  RESEND_API_KEY: ${RESEND_API_KEY}
+  EMAIL_FROM: ${EMAIL_FROM}
+
 services:
   db:
     image: postgres:17-alpine
@@ -15,17 +30,10 @@ services:
       retries: 5
 
   backend:
-    build: ./backend
+    <<: *backend-image
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      SECRET_KEY: ${SECRET_KEY}
-      ENVIRONMENT: ${ENVIRONMENT:-production}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      CORS_ORIGINS: ${CORS_ORIGINS:-["http://localhost:5173"]}
-      FRONTEND_URL: ${FRONTEND_URL:-https://puntoentrega.online}
-      RESEND_API_KEY: ${RESEND_API_KEY}
-      EMAIL_FROM: ${EMAIL_FROM}
+      <<: *backend-env
     depends_on:
       db:
         condition: service_healthy
@@ -33,22 +41,13 @@ services:
       - "127.0.0.1:8002:8000"
 
   worker:
-    build: ./backend
+    <<: *backend-image
     restart: unless-stopped
     command: ["uv", "run", "python", "-m", "worker.main"]
+    healthcheck:
+      disable: true
     environment:
-      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
-      SECRET_KEY: ${SECRET_KEY}
-      ENVIRONMENT: ${ENVIRONMENT:-production}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      FRONTEND_URL: ${FRONTEND_URL:-https://puntoentrega.online}
-      RESEND_API_KEY: ${RESEND_API_KEY}
-      EMAIL_FROM: ${EMAIL_FROM}
-      NOTIFICATION_WORKER_POLL_INTERVAL_SECONDS: ${NOTIFICATION_WORKER_POLL_INTERVAL_SECONDS:-5}
-      NOTIFICATION_WORKER_BATCH_SIZE: ${NOTIFICATION_WORKER_BATCH_SIZE:-10}
-      NOTIFICATION_OUTBOX_MAX_ATTEMPTS: ${NOTIFICATION_OUTBOX_MAX_ATTEMPTS:-5}
-      NOTIFICATION_OUTBOX_RETRY_BASE_DELAY_SECONDS: ${NOTIFICATION_OUTBOX_RETRY_BASE_DELAY_SECONDS:-60}
-      NOTIFICATION_OUTBOX_PROCESSING_TIMEOUT_SECONDS: ${NOTIFICATION_OUTBOX_PROCESSING_TIMEOUT_SECONDS:-300}
+      <<: *backend-env
     depends_on:
       db:
         condition: service_healthy
