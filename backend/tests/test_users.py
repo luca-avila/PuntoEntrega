@@ -6,8 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.sql.elements import ColumnElement
 
 from core.db import async_session_maker
-from core.errors import EmailSendError
 from features.auth.models import User
+from features.notifications.errors import EmailSendError
 from features.notifications.worker import process_pending_events
 
 USER_EMAIL = "test@example.com"

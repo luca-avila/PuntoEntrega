@@ -5,7 +5,7 @@ from urllib import request
 from urllib.error import HTTPError, URLError
 
 from core.config import settings
-from core.errors import EmailSendError
+from features.notifications.errors import EmailSendError
 
 logger = logging.getLogger(__name__)
 

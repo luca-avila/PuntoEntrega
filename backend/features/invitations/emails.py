@@ -1,5 +1,5 @@
-from core.errors import EmailSendError
 from core.frontend_urls import build_frontend_action_url
+from features.notifications.errors import EmailSendError
 from features.notifications.email_provider import send_email
 
 INVITATION_ACCEPT_PATH = "/aceptar-invitacion"
