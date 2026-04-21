@@ -4,29 +4,29 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yaml"
-BUILD_ENV_FILE="${BUILD_ENV_FILE:-$PROJECT_ROOT/.env.build}"
-BACKEND_ENV_FILE="${BACKEND_ENV_FILE:-$PROJECT_ROOT/.env.backend}"
+BACKEND_ENV_FILE="${BACKEND_ENV_FILE:-}"
+BACKEND_IMAGE_REF="${BACKEND_IMAGE_REF:-puntoentrega-backend:dev}"
 SERVICE_NAME="backend"
 WORKER_SERVICE_NAME="worker"
 DB_SERVICE_NAME="db"
 HEALTHCHECK_URL="${HEALTHCHECK_URL:-http://127.0.0.1:8002/health}"
 
-require_root() {
-  if [[ "${EUID}" -ne 0 ]]; then
-    echo "This script must be run with sudo."
-    echo "Use: sudo $0"
-    exit 1
+choose_backend_env_file() {
+  if [[ -n "$BACKEND_ENV_FILE" ]]; then
+    return
   fi
+
+  if [[ -f "$PROJECT_ROOT/.env.development" ]]; then
+    BACKEND_ENV_FILE="$PROJECT_ROOT/.env.development"
+    return
+  fi
+
+  BACKEND_ENV_FILE="$PROJECT_ROOT/.env.backend"
 }
 
 check_paths() {
   if [[ ! -f "$COMPOSE_FILE" ]]; then
     echo "docker-compose file not found: $COMPOSE_FILE"
-    exit 1
-  fi
-
-  if [[ ! -f "$BUILD_ENV_FILE" ]]; then
-    echo "Build env file not found: $BUILD_ENV_FILE"
     exit 1
   fi
 
@@ -37,24 +37,9 @@ check_paths() {
 }
 
 compose() {
-  BACKEND_ENV_FILE="$BACKEND_ENV_FILE" docker compose \
-    --env-file "$BUILD_ENV_FILE" \
+  BACKEND_ENV_FILE="$BACKEND_ENV_FILE" BACKEND_IMAGE_REF="$BACKEND_IMAGE_REF" docker compose \
     -f "$COMPOSE_FILE" \
     "$@"
-}
-
-healthcheck() {
-  echo "==> Running backend health check..."
-  for _ in {1..20}; do
-    if curl -fsS "$HEALTHCHECK_URL" >/dev/null; then
-      echo "Backend health check passed."
-      return 0
-    fi
-    sleep 1
-  done
-
-  echo "Backend health check failed: $HEALTHCHECK_URL"
-  return 1
 }
 
 wait_for_db_health() {
@@ -80,39 +65,42 @@ wait_for_db_health() {
   return 1
 }
 
-run_migrations() {
-  echo "==> Running database migrations..."
-  compose run --rm "$SERVICE_NAME" uv run alembic upgrade head
-  echo "Database migrations applied."
+healthcheck() {
+  echo "==> Running backend health check..."
+  for _ in {1..20}; do
+    if curl -fsS "$HEALTHCHECK_URL" >/dev/null; then
+      echo "Backend health check passed."
+      return 0
+    fi
+    sleep 1
+  done
+
+  echo "Backend health check failed: $HEALTHCHECK_URL"
+  return 1
 }
 
 main() {
-  require_root
+  choose_backend_env_file
   check_paths
 
   cd "$PROJECT_ROOT"
 
-  echo "==> Validating Compose configuration..."
-  compose config --quiet
-
-  echo "==> Pulling backend runtime image..."
-  compose pull "$SERVICE_NAME" "$WORKER_SERVICE_NAME"
+  echo "==> Building local backend image..."
+  docker build -t "$BACKEND_IMAGE_REF" "$PROJECT_ROOT/backend"
 
   echo "==> Starting database service..."
   compose up -d "$DB_SERVICE_NAME"
   wait_for_db_health
 
-  run_migrations
+  echo "==> Running database migrations..."
+  compose run --rm "$SERVICE_NAME" uv run alembic upgrade head
 
-  echo "==> Recreating backend and worker containers..."
+  echo "==> Starting backend and worker..."
   compose up -d --force-recreate "$SERVICE_NAME" "$WORKER_SERVICE_NAME"
 
   healthcheck
 
-  echo "==> Last backend logs:"
-  compose logs --tail=50 "$SERVICE_NAME"
-
-  echo "Backend deployed successfully."
+  echo "Backend dev stack is running at $HEALTHCHECK_URL"
 }
 
 main "$@"

@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-IMAGE_NAME="frontend-image"
-TEMP_CONTAINER="frontend-artifact"
-FRONTEND_DIR="frontend"
-TARGET_DIR="/var/www/PuntoEntrega"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+BUILD_ENV_FILE="${BUILD_ENV_FILE:-$PROJECT_ROOT/.env.build}"
+TARGET_DIR="${FRONTEND_TARGET_DIR:-/var/www/PuntoEntrega}"
+TEMP_CONTAINER="puntoentrega-frontend-artifact-$$"
 
 cleanup() {
   docker rm -f "$TEMP_CONTAINER" >/dev/null 2>&1 || true
@@ -19,32 +20,52 @@ require_root() {
   fi
 }
 
+load_build_env() {
+  if [[ ! -f "$BUILD_ENV_FILE" ]]; then
+    echo "Build env file not found: $BUILD_ENV_FILE"
+    exit 1
+  fi
+
+  set -a
+  # shellcheck disable=SC1090
+  source "$BUILD_ENV_FILE"
+  set +a
+
+  if [[ -z "${FRONTEND_IMAGE_REF:-}" ]]; then
+    echo "FRONTEND_IMAGE_REF is required in $BUILD_ENV_FILE"
+    exit 1
+  fi
+}
+
 check_paths() {
-  if [[ ! -d "$FRONTEND_DIR" ]]; then
-    echo "Frontend directory not found: $FRONTEND_DIR"
-    exit 1
-  fi
-
-  if [[ ! -f "$FRONTEND_DIR/Dockerfile" ]]; then
-    echo "Dockerfile not found in: $FRONTEND_DIR"
-    exit 1
-  fi
-
   mkdir -p "$TARGET_DIR"
+}
+
+reload_nginx() {
+  if [[ "${SKIP_NGINX_RELOAD:-0}" == "1" ]]; then
+    echo "==> Skipping nginx reload."
+    return
+  fi
+
+  echo "==> Testing nginx config..."
+  nginx -t
+
+  echo "==> Reloading nginx..."
+  systemctl reload nginx
 }
 
 main() {
   require_root
+  load_build_env
   check_paths
 
-  echo "==> Building frontend image..."
-  docker build -t "$IMAGE_NAME" "$FRONTEND_DIR"
+  cd "$PROJECT_ROOT"
 
-  echo "==> Removing old temp container if it exists..."
-  docker rm -f "$TEMP_CONTAINER" >/dev/null 2>&1 || true
+  echo "==> Pulling frontend artifact image..."
+  docker pull "$FRONTEND_IMAGE_REF"
 
   echo "==> Creating temp container..."
-  docker create --name "$TEMP_CONTAINER" "$IMAGE_NAME" >/dev/null
+  docker create --name "$TEMP_CONTAINER" "$FRONTEND_IMAGE_REF" >/dev/null
 
   echo "==> Clearing target directory..."
   rm -rf "${TARGET_DIR:?}"/*
@@ -55,7 +76,6 @@ main() {
   echo "==> Verifying extracted artifact..."
   if [[ ! -f "$TARGET_DIR/index.html" ]]; then
     echo "Deployment failed: $TARGET_DIR/index.html was not found."
-    echo "The dist artifact may have been copied incorrectly."
     exit 1
   fi
 
@@ -64,13 +84,9 @@ main() {
   find "$TARGET_DIR" -type d -exec chmod 755 {} \;
   find "$TARGET_DIR" -type f -exec chmod 644 {} \;
 
-  echo "==> Testing nginx config..."
-  nginx -t
+  reload_nginx
 
-  echo "==> Reloading nginx..."
-  systemctl reload nginx
-
-  echo "✅ Frontend deployed successfully."
+  echo "Frontend deployed successfully."
 }
 
 main "$@"

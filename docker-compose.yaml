@@ -3,14 +3,14 @@ x-backend-image: &backend-image
 
 x-backend-env-file: &backend-env-file
   env_file:
-    - .env.backend
+    - ${BACKEND_ENV_FILE:-.env.backend}
 
 services:
   db:
     image: postgres:17-alpine
     restart: unless-stopped
     env_file:
-      - .env.backend
+      - ${BACKEND_ENV_FILE:-.env.backend}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
