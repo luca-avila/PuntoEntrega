@@ -61,9 +61,6 @@ main() {
 
   cd "$PROJECT_ROOT"
 
-  echo "==> Pulling frontend artifact image..."
-  docker pull "$FRONTEND_IMAGE_REF"
-
   echo "==> Creating temp container..."
   docker create --name "$TEMP_CONTAINER" "$FRONTEND_IMAGE_REF" >/dev/null
 

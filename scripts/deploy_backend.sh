@@ -95,9 +95,6 @@ main() {
   echo "==> Validating Compose configuration..."
   compose config --quiet
 
-  echo "==> Pulling backend runtime image..."
-  compose pull "$SERVICE_NAME" "$WORKER_SERVICE_NAME"
-
   echo "==> Starting database service..."
   compose up -d "$DB_SERVICE_NAME"
   wait_for_db_health
