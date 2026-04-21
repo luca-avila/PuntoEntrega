@@ -22,8 +22,7 @@ Notas:
 - `VITE_DEV_PROXY_TARGET` define a qué backend reenvía Vite durante desarrollo.
 - `VITE_GOOGLE_MAPS_API_KEY` habilita Google Geocoding (si no está, se usa fallback a Nominatim).
 
-Para producción podés partir de `frontend/.env.production.example`.
-Para desarrollo podés partir de `frontend/.env.development.example`.
+Para valores de ejemplo, usá `.env.example` en la raíz del repo.
 
 ## Desarrollo
 
