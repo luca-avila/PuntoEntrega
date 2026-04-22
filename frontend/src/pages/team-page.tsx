@@ -215,6 +215,7 @@ export function TeamPage() {
               <div className="space-y-2">
                 <Label htmlFor="invite-email">Email</Label>
                 <Input
+                  autoFocus
                   id="invite-email"
                   type="email"
                   placeholder="nombre@empresa.com"

@@ -420,6 +420,7 @@ export function LocationFormPage({ mode }: LocationFormPageProps) {
               <div className="space-y-2 sm:col-span-2" ref={mapSectionRef}>
                 <Label htmlFor="name">Nombre</Label>
                 <Input
+                  autoFocus
                   id="name"
                   placeholder="Sucursal Centro"
                   {...register("name", {

@@ -151,6 +151,7 @@ export function LoginPage() {
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
+                autoFocus
                 id="email"
                 placeholder="nombre@empresa.com"
                 type="email"

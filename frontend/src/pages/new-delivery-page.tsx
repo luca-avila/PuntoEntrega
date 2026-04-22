@@ -205,6 +205,7 @@ export function NewDeliveryPage() {
                 <div className="space-y-2">
                   <Label htmlFor="location_id">Ubicación</Label>
                   <Select
+                    autoFocus
                     id="location_id"
                     {...register("location_id", {
                       required: "La ubicación es obligatoria.",

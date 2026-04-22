@@ -212,6 +212,7 @@ export function ProductsListPage() {
                 <div className="space-y-2">
                   <Label htmlFor="product-request-subject">Asunto</Label>
                   <Input
+                    autoFocus
                     id="product-request-subject"
                     placeholder="Ej: Pedido semanal de stock"
                     {...register("subject", {

@@ -108,6 +108,7 @@ export function ResetPasswordPage() {
               <div className="space-y-2">
                 <Label htmlFor="password">Nueva contraseña</Label>
                 <Input
+                  autoFocus
                   id="password"
                   placeholder="********"
                   type="password"

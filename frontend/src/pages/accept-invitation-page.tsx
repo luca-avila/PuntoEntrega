@@ -286,6 +286,7 @@ export function AcceptInvitationPage() {
                     <div className="space-y-2">
                       <Label htmlFor="new-password">Contraseña</Label>
                       <Input
+                        autoFocus
                         id="new-password"
                         type="password"
                         autoComplete="new-password"

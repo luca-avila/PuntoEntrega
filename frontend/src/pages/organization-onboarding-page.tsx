@@ -82,6 +82,7 @@ export function OrganizationOnboardingPage() {
             <div className="space-y-2">
               <Label htmlFor="organization-name">Nombre de la organización</Label>
               <Input
+                autoFocus
                 id="organization-name"
                 placeholder="Ej: PuntoEntrega Centro"
                 autoComplete="organization"

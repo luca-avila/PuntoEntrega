@@ -157,6 +157,7 @@ export function ProductFormPage({ mode }: ProductFormPageProps) {
               <div className="space-y-2">
                 <Label htmlFor="name">Nombre</Label>
                 <Input
+                  autoFocus
                   id="name"
                   placeholder="Harina integral 1kg"
                   {...register("name", {
