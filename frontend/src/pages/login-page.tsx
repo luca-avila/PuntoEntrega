@@ -125,7 +125,7 @@ export function LoginPage() {
         <CardHeader>
           <CardTitle className="text-center">Iniciar sesión</CardTitle>
           <CardDescription className="text-center">
-            Accedé a tu organización para continuar.
+            Accedé a tu cuenta para continuar.
           </CardDescription>
         </CardHeader>
         <CardContent>
