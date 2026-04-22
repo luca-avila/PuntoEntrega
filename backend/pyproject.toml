@@ -1,7 +1,7 @@
 [project]
-name = "auth-module-backend"
+name = "punto-entrega-backend"
 version = "0.1.0"
-description = "FastAPI auth backend"
+description = "FastAPI backend for PuntoEntrega"
 requires-python = ">=3.12"
 dependencies = [
     "alembic>=1.18.4",

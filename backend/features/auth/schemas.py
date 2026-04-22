@@ -4,17 +4,17 @@ from fastapi_users import schemas
 
 
 class UserRead(schemas.BaseUser[uuid.UUID]):
-    """User read schema - returned from API."""
+    """Authenticated account returned by the API."""
     pass
 
 
 class UserCreate(schemas.BaseUserCreate):
-    """User creation schema - for registration."""
+    """Payload used to create a PuntoEntrega account."""
 
     pass
 
 
 class UserUpdate(schemas.BaseUserUpdate):
-    """User update schema - for patches."""
+    """Payload used to update account data."""
 
     pass

@@ -57,7 +57,7 @@ export function HomePage() {
             <CardHeader className="px-6 py-7 text-center sm:px-10 sm:py-9">
               <CardTitle className="text-2xl sm:text-3xl">Cuenta lista para usar</CardTitle>
               <CardDescription className="mx-auto max-w-2xl">
-                Ya podés iniciar sesión como miembro base. Cuando quieras, creá tu organización
+                Ya podés usar tu cuenta. Cuando quieras, creá tu organización
                 desde este panel para habilitar la operación completa.
               </CardDescription>
             </CardHeader>

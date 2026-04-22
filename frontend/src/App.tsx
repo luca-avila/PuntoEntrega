@@ -23,7 +23,22 @@ import { ForgotPasswordPage } from "@/pages/forgot-password-page";
 import { ResetPasswordPage } from "@/pages/reset-password-page";
 import { TeamPage } from "@/pages/team-page";
 import { VerifyEmailPage } from "@/pages/verify-email-page";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
+
+interface LegacyRouteRedirectProps {
+  to: string;
+}
+
+function LegacyRouteRedirect({ to }: LegacyRouteRedirectProps) {
+  const location = useLocation();
+
+  return (
+    <Navigate
+      replace
+      to={{ pathname: to, search: location.search, hash: location.hash }}
+    />
+  );
+}
 
 export default function App() {
   return (
@@ -34,9 +49,15 @@ export default function App() {
           <Route path="/registro" element={<RegisterPage />} />
           <Route path="/recuperar-contrasena" element={<ForgotPasswordPage />} />
           <Route path="/restablecer-contrasena" element={<ResetPasswordPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route
+            path="/reset-password"
+            element={<LegacyRouteRedirect to="/restablecer-contrasena" />}
+          />
           <Route path="/verificar-email" element={<VerifyEmailPage />} />
-          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route
+            path="/verify-email"
+            element={<LegacyRouteRedirect to="/verificar-email" />}
+          />
           <Route path="/aceptar-invitacion" element={<AcceptInvitationPage />} />
 
           <Route element={<ProtectedRoute />}>

@@ -10,7 +10,7 @@ async def handle_verify_email_requested(
     event: NotificationOutboxEvent,
 ) -> None:
     del session
-    await auth_emails.send_verify_email(
+    await auth_emails.send_account_verification_email(
         require_payload_str(event.payload, "email"),
         require_payload_str(event.payload, "token"),
     )
@@ -21,7 +21,7 @@ async def handle_password_reset_requested(
     event: NotificationOutboxEvent,
 ) -> None:
     del session
-    await auth_emails.send_reset_password_email(
+    await auth_emails.send_password_reset_email(
         require_payload_str(event.payload, "email"),
         require_payload_str(event.payload, "token"),
     )

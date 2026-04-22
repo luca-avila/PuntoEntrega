@@ -5,7 +5,7 @@ MVP SaaS multi-tenant para registrar entregas/consignaciones por organización.
 ## Estado del MVP
 
 Implementado:
-- Autenticación reutilizando el módulo existente
+- Autenticación integrada con registro, verificación de cuenta, login y recuperación de contraseña
 - Onboarding de organización (creación manual post-login)
 - Modelo owner/member (sin `role` en usuario)
 - Aislamiento por organización en backend
@@ -111,7 +111,7 @@ npm run build
 
 ## Flujos funcionales clave
 
-1. Registro -> login -> acceso base.
+1. Registro -> verificación de cuenta -> login -> inicio.
 2. Crear organización desde `/organizacion/crear` cuando quieras (si querés operar como owner).
 3. Owner invita miembro desde `/equipo`.
 4. Invitado acepta por `/aceptar-invitacion?token=...` (cuenta nueva o autenticada).

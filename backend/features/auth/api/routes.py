@@ -13,7 +13,7 @@ from features.auth.service import (
     auth_backend,
     fastapi_users,
     get_user_manager,
-    maybe_resend_verify_email_for_unverified_login,
+    maybe_resend_account_verification_email_for_unverified_login,
 )
 
 
@@ -31,11 +31,11 @@ def get_auth_jwt_router() -> APIRouter:
                 "application/json": {
                     "examples": {
                         ErrorCode.LOGIN_BAD_CREDENTIALS: {
-                            "summary": "Bad credentials or the user is inactive.",
+                            "summary": "Credenciales inválidas o cuenta inactiva.",
                             "value": {"detail": ErrorCode.LOGIN_BAD_CREDENTIALS},
                         },
                         ErrorCode.LOGIN_USER_NOT_VERIFIED: {
-                            "summary": "The user is not verified.",
+                            "summary": "La cuenta todavía no está verificada.",
                             "value": {"detail": ErrorCode.LOGIN_USER_NOT_VERIFIED},
                         },
                     }
@@ -65,7 +65,7 @@ def get_auth_jwt_router() -> APIRouter:
             )
 
         if not user.is_verified:
-            await maybe_resend_verify_email_for_unverified_login(user_manager, user, request)
+            await maybe_resend_account_verification_email_for_unverified_login(user_manager, user, request)
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=ErrorCode.LOGIN_USER_NOT_VERIFIED,
@@ -78,7 +78,7 @@ def get_auth_jwt_router() -> APIRouter:
     logout_responses: OpenAPIResponseType = {
         **{
             status.HTTP_401_UNAUTHORIZED: {
-                "description": "Missing token or inactive user.",
+                "description": "Token ausente o cuenta inactiva.",
             }
         },
         **auth_backend.transport.get_openapi_logout_responses_success(),

@@ -44,11 +44,15 @@ Públicas:
 - `/iniciar-sesion`
 - `/registro`
 - `/recuperar-contrasena`
-- `/restablecer-contrasena` y `/reset-password`
-- `/verificar-email` y `/verify-email`
+- `/restablecer-contrasena`
+- `/verificar-email`
 - `/aceptar-invitacion?token=...`
 
-Protegidas base (usuario autenticado):
+Aliases legacy con redirección a rutas en español:
+- `/reset-password` -> `/restablecer-contrasena`
+- `/verify-email` -> `/verificar-email`
+
+Protegidas para usuario autenticado:
 - `/`
 - `/organizacion/crear`
 - `/onboarding/organizacion` (alias legacy que redirige a `/organizacion/crear`)
@@ -70,7 +74,7 @@ Owner-only:
 ## Comportamiento por rol
 
 - usuario autenticado sin organización:
-  - puede usar la cuenta base y entrar a `Inicio`.
+  - puede entrar a `Inicio` y crear una organización cuando lo necesite.
   - ve acceso directo a `Crear organización` desde navegación.
   - al intentar entrar a módulos operativos (`/entregas`, `/ubicaciones`, `/productos`) se redirige a `/organizacion/crear`.
 - `owner`: ve navegación completa (`Nueva entrega`, `Equipo`) y acciones de alta/edición.

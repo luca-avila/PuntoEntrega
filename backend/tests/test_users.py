@@ -81,27 +81,27 @@ class TestPasswordValidation:
     async def test_password_too_short(self, client: AsyncClient):
         response = await register_user(client, password="Ab1!")
         assert response.status_code == 400
-        assert "8 characters" in response.json()["detail"]["reason"]
+        assert "al menos 8 caracteres" in response.json()["detail"]["reason"]
 
     async def test_password_no_uppercase(self, client: AsyncClient):
         response = await register_user(client, password="lowercase1!")
         assert response.status_code == 400
-        assert "uppercase" in response.json()["detail"]["reason"]
+        assert "mayúscula" in response.json()["detail"]["reason"]
 
     async def test_password_no_lowercase(self, client: AsyncClient):
         response = await register_user(client, password="UPPERCASE1!")
         assert response.status_code == 400
-        assert "lowercase" in response.json()["detail"]["reason"]
+        assert "minúscula" in response.json()["detail"]["reason"]
 
     async def test_password_no_digit(self, client: AsyncClient):
         response = await register_user(client, password="NoDigits!!")
         assert response.status_code == 400
-        assert "digit" in response.json()["detail"]["reason"]
+        assert "número" in response.json()["detail"]["reason"]
 
     async def test_password_no_special_char(self, client: AsyncClient):
         response = await register_user(client, password="NoSpecial1A")
         assert response.status_code == 400
-        assert "special character" in response.json()["detail"]["reason"]
+        assert "símbolo" in response.json()["detail"]["reason"]
 
     async def test_password_contains_email_username(self, client: AsyncClient):
         response = await register_user(client, email="john@example.com", password="John1234!")
@@ -135,12 +135,12 @@ class TestLogin:
     ):
         sent_calls: list[tuple[str, str]] = []
 
-        async def fake_send_verify_email(email: str, token: str) -> None:
+        async def fake_send_account_verification_email(email: str, token: str) -> None:
             sent_calls.append((email, token))
 
         monkeypatch.setattr(
-            "features.auth.emails.send_verify_email",
-            fake_send_verify_email,
+            "features.auth.emails.send_account_verification_email",
+            fake_send_account_verification_email,
         )
 
         register_response = await register_user(client)
@@ -212,12 +212,12 @@ class TestEmailFlows:
     async def test_register_triggers_verify_email_send(self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch):
         sent_calls: list[tuple[str, str]] = []
 
-        async def fake_send_verify_email(email: str, token: str) -> None:
+        async def fake_send_account_verification_email(email: str, token: str) -> None:
             sent_calls.append((email, token))
 
         monkeypatch.setattr(
-            "features.auth.emails.send_verify_email",
-            fake_send_verify_email,
+            "features.auth.emails.send_account_verification_email",
+            fake_send_account_verification_email,
         )
 
         response = await register_user(client)
@@ -232,13 +232,13 @@ class TestEmailFlows:
     ):
         sent_calls: list[tuple[str, str]] = []
 
-        async def fake_send_verify_email(email: str, token: str) -> None:
+        async def fake_send_account_verification_email(email: str, token: str) -> None:
             sent_calls.append((email, token))
             raise EmailSendError("resend unavailable")
 
         monkeypatch.setattr(
-            "features.auth.emails.send_verify_email",
-            fake_send_verify_email,
+            "features.auth.emails.send_account_verification_email",
+            fake_send_account_verification_email,
         )
 
         register_response = await register_user(client)
@@ -256,12 +256,12 @@ class TestEmailFlows:
     ):
         sent_calls: list[tuple[str, str]] = []
 
-        async def fake_send_verify_email(email: str, token: str) -> None:
+        async def fake_send_account_verification_email(email: str, token: str) -> None:
             sent_calls.append((email, token))
 
         monkeypatch.setattr(
-            "features.auth.emails.send_verify_email",
-            fake_send_verify_email,
+            "features.auth.emails.send_account_verification_email",
+            fake_send_account_verification_email,
         )
 
         register_response = await register_user(client)
@@ -281,12 +281,12 @@ class TestEmailFlows:
     ):
         sent_calls: list[tuple[str, str]] = []
 
-        async def fake_send_reset_password_email(email: str, token: str) -> None:
+        async def fake_send_password_reset_email(email: str, token: str) -> None:
             sent_calls.append((email, token))
 
         monkeypatch.setattr(
-            "features.auth.emails.send_reset_password_email",
-            fake_send_reset_password_email,
+            "features.auth.emails.send_password_reset_email",
+            fake_send_password_reset_email,
         )
 
         register_response = await register_user(client)
@@ -302,12 +302,12 @@ class TestEmailFlows:
     async def test_forgot_password_email_failure_does_not_fail_endpoint(
         self, client: AsyncClient, monkeypatch: pytest.MonkeyPatch
     ):
-        async def fake_send_reset_password_email(email: str, token: str) -> None:
+        async def fake_send_password_reset_email(email: str, token: str) -> None:
             raise EmailSendError("resend unavailable")
 
         monkeypatch.setattr(
-            "features.auth.emails.send_reset_password_email",
-            fake_send_reset_password_email,
+            "features.auth.emails.send_password_reset_email",
+            fake_send_password_reset_email,
         )
 
         register_response = await register_user(client)
@@ -322,12 +322,12 @@ class TestEmailFlows:
     ):
         sent_calls: list[tuple[str, str]] = []
 
-        async def fake_send_reset_password_email(email: str, token: str) -> None:
+        async def fake_send_password_reset_email(email: str, token: str) -> None:
             sent_calls.append((email, token))
 
         monkeypatch.setattr(
-            "features.auth.emails.send_reset_password_email",
-            fake_send_reset_password_email,
+            "features.auth.emails.send_password_reset_email",
+            fake_send_password_reset_email,
         )
 
         response = await client.post("/auth/forgot-password", json={"email": "missing@example.com"})

@@ -140,7 +140,7 @@ export function NewDeliveryPage() {
       {loadError ? (
         <Card className="border-destructive/40">
           <CardHeader>
-            <CardTitle className="text-base">No pudimos cargar los datos base</CardTitle>
+            <CardTitle className="text-base">No pudimos cargar los datos necesarios</CardTitle>
             <CardDescription>{loadError}</CardDescription>
           </CardHeader>
           <CardContent>
