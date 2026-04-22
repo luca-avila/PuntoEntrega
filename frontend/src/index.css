@@ -62,15 +62,22 @@
 
 @layer components {
   .app-shell {
-    @apply min-h-screen bg-background;
+    @apply flex flex-col bg-background;
+    min-height: 100dvh;
   }
 
   .auth-shell {
-    @apply flex min-h-screen items-center justify-center px-4 py-10;
+    @apply flex items-center justify-center px-4 py-6 sm:py-8;
+    min-height: 100dvh;
+  }
+
+  .app-shell .auth-shell {
+    @apply flex-1 py-0;
+    min-height: 0;
   }
 
   .page-section {
-    @apply space-y-6;
+    @apply space-y-7;
   }
 
   .page-header {
@@ -78,11 +85,11 @@
   }
 
   .page-title {
-    @apply text-2xl font-semibold md:text-3xl;
+    @apply text-3xl font-semibold md:text-4xl;
   }
 
   .page-description {
-    @apply text-sm text-muted-foreground;
+    @apply text-base leading-relaxed text-muted-foreground;
   }
 
   .feedback-success {

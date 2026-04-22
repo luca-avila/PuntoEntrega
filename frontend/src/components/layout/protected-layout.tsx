@@ -55,11 +55,11 @@ export function ProtectedLayout() {
   return (
     <div className="app-shell">
       <header className="border-b border-border/70 bg-background/85 backdrop-blur">
-        <div className="mx-auto w-full max-w-6xl px-4 py-4 sm:py-5">
+        <div className="mx-auto w-full max-w-7xl px-5 py-4 sm:px-6 sm:py-5 lg:px-8">
           <div className="flex items-start justify-between gap-3 sm:items-center">
             <div className="min-w-0">
-              <h1 className="font-heading text-lg font-semibold">PuntoEntrega</h1>
-              <p className="truncate text-sm text-muted-foreground">
+              <h1 className="font-heading text-xl font-semibold">PuntoEntrega</h1>
+              <p className="truncate text-base text-muted-foreground">
                 {user?.email ?? "Sesion activa"}
               </p>
             </div>
@@ -84,7 +84,7 @@ export function ProtectedLayout() {
                     item.to === "/entregas" ? isHistoryActive : isActive;
 
                   return cn(
-                    "flex min-h-10 items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors",
+                    "flex min-h-11 items-center justify-center rounded-lg border px-4 text-sm font-medium transition-colors sm:text-base",
                     isItemActive
                       ? "border-primary/40 bg-primary/20 text-primary"
                       : "border-border/70 bg-secondary/60 text-secondary-foreground hover:bg-secondary",
@@ -98,7 +98,7 @@ export function ProtectedLayout() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-6xl px-4 py-5 sm:py-6">
+      <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-5 py-6 sm:px-6 sm:py-7 lg:px-8">
         <Outlet />
       </main>
     </div>

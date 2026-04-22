@@ -51,30 +51,30 @@ export function HomePage() {
 
   if (!hasOrganization) {
     return (
-      <section className="page-section flex w-full justify-center">
-        <Card className="w-full max-w-3xl overflow-hidden border-border/80 shadow-lg shadow-black/20">
+      <section className="page-section">
+        <Card className="w-full overflow-hidden border-border/80 shadow-lg shadow-black/20">
           <div className="bg-gradient-to-r from-primary/15 via-primary/5 to-transparent">
-            <CardHeader className="px-5 py-6 text-center sm:px-8 sm:py-7">
-              <CardTitle className="text-xl sm:text-2xl">Cuenta lista para usar</CardTitle>
-              <CardDescription className="mx-auto max-w-xl text-sm">
+            <CardHeader className="px-6 py-7 text-center sm:px-10 sm:py-9">
+              <CardTitle className="text-2xl sm:text-3xl">Cuenta lista para usar</CardTitle>
+              <CardDescription className="mx-auto max-w-2xl">
                 Ya podés iniciar sesión como miembro base. Cuando quieras, creá tu organización
                 desde este panel para habilitar la operación completa.
               </CardDescription>
             </CardHeader>
           </div>
-          <CardContent className="grid gap-3 p-4 text-sm sm:grid-cols-2 sm:gap-4 sm:p-6">
+          <CardContent className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7">
             <Link
-              className="group flex min-h-28 flex-col justify-between rounded-xl border border-border/80 bg-secondary/45 p-4 transition-all hover:-translate-y-0.5 hover:bg-secondary/70"
+              className="group flex min-h-36 flex-col justify-between rounded-xl border border-border/80 bg-secondary/45 p-5 transition-all hover:-translate-y-0.5 hover:bg-secondary/70"
               to="/organizacion/crear"
             >
-              <p className="text-sm font-semibold sm:text-base">Crear organización</p>
-              <p className="text-muted-foreground group-hover:text-foreground/90">
+              <p className="text-base font-semibold sm:text-lg">Crear organización</p>
+              <p className="text-base leading-relaxed text-muted-foreground group-hover:text-foreground/90">
                 Definí nombre y comenzá como owner de tu espacio de trabajo.
               </p>
             </Link>
-            <div className="flex min-h-28 flex-col justify-between rounded-xl border border-border/80 bg-secondary/25 p-4">
-              <p className="text-sm font-semibold sm:text-base">¿Te invitaron por email?</p>
-              <p className="text-muted-foreground">
+            <div className="flex min-h-36 flex-col justify-between rounded-xl border border-border/80 bg-secondary/25 p-5">
+              <p className="text-base font-semibold sm:text-lg">¿Te invitaron por email?</p>
+              <p className="text-base leading-relaxed text-muted-foreground">
                 Abrí el enlace de invitación recibido para unirte a una organización existente.
               </p>
             </div>
@@ -93,26 +93,26 @@ export function HomePage() {
     );
 
   return (
-    <section className="page-section flex w-full justify-center">
-      <Card className="w-full max-w-4xl overflow-hidden border-border/80 shadow-lg shadow-black/20">
+    <section className="page-section">
+      <Card className="w-full overflow-hidden border-border/80 shadow-lg shadow-black/20">
         <div className="bg-gradient-to-r from-primary/15 via-primary/5 to-transparent">
-          <CardHeader className="px-5 py-6 text-center sm:px-8 sm:py-7">
-            <CardTitle className="text-xl sm:text-2xl">Panel operativo</CardTitle>
-            <CardDescription className="mx-auto max-w-xl text-sm">
+          <CardHeader className="px-6 py-7 text-center sm:px-10 sm:py-9">
+            <CardTitle className="text-2xl sm:text-3xl">Panel operativo</CardTitle>
+            <CardDescription className="mx-auto max-w-2xl">
               Accedé rápido a los flujos habilitados para tu perfil dentro de la organización.
             </CardDescription>
           </CardHeader>
         </div>
 
-        <CardContent className="grid gap-3 p-4 text-sm sm:grid-cols-2 sm:gap-4 sm:p-6">
+        <CardContent className="grid gap-4 p-5 sm:grid-cols-2 sm:p-7 lg:grid-cols-3">
           {visibleItems.map((item) => (
             <Link
-              className="group flex min-h-28 flex-col justify-between rounded-xl border border-border/80 bg-secondary/45 p-4 transition-all hover:-translate-y-0.5 hover:bg-secondary/70"
+              className="group flex min-h-36 flex-col justify-between rounded-xl border border-border/80 bg-secondary/45 p-5 transition-all hover:-translate-y-0.5 hover:bg-secondary/70"
               key={item.to}
               to={item.to}
             >
-              <p className="text-sm font-semibold sm:text-base">{item.title}</p>
-              <p className="text-muted-foreground group-hover:text-foreground/90">
+              <p className="text-base font-semibold sm:text-lg">{item.title}</p>
+              <p className="text-base leading-relaxed text-muted-foreground group-hover:text-foreground/90">
                 {item.description}
               </p>
             </Link>
