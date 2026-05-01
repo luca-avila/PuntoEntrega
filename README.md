@@ -300,7 +300,7 @@ Estados del outbox:
 - `processed`: email enviado o handler completado.
 - `failed`: evento agotado o no recuperable.
 
-Para solicitudes de productos, además, el estado queda visible en el dominio:
+Para solicitudes de productos, la API de historial expone un snapshot derivado del outbox:
 
 - `email_status = pending`
 - `email_status = sent`

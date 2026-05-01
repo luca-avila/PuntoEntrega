@@ -7,17 +7,14 @@ from typing import TYPE_CHECKING
 from sqlalchemy import (
     CheckConstraint,
     DateTime,
-    Enum as SAEnum,
     ForeignKey,
     ForeignKeyConstraint,
-    Integer,
     Numeric,
     String,
     Text,
     UniqueConstraint,
     Uuid,
     func,
-    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -70,28 +67,6 @@ class ProductRequest(Base):
     )
     subject: Mapped[str] = mapped_column(String(255), nullable=False)
     message: Mapped[str | None] = mapped_column(Text, nullable=True)
-    email_status: Mapped[ProductRequestEmailStatus] = mapped_column(
-        SAEnum(
-            ProductRequestEmailStatus,
-            name="product_request_email_status_enum",
-            native_enum=False,
-            create_constraint=True,
-            validate_strings=True,
-            values_callable=lambda enum_cls: [item.value for item in enum_cls],
-        ),
-        nullable=False,
-        default=ProductRequestEmailStatus.PENDING,
-        server_default=ProductRequestEmailStatus.PENDING.value,
-        index=True,
-    )
-    email_attempts: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        default=0,
-        server_default=text("0"),
-    )
-    email_last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
-    email_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

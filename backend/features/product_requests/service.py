@@ -3,11 +3,15 @@ from decimal import Decimal
 
 from fastapi import HTTPException, status
 from sqlalchemy import select
-from sqlalchemy.sql import Select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
+from sqlalchemy.sql import Select
 
 from features.auth.models import User
+from features.notifications.models import (
+    NotificationOutboxEvent,
+    NotificationOutboxStatus,
+)
 from features.notifications.outbox import (
     EVENT_PRODUCT_REQUEST_OWNER_NOTIFICATION_REQUESTED,
     enqueue_notification_event,
@@ -22,16 +26,6 @@ from features.product_requests.models import (
 from features.product_requests.schemas import ProductRequestListFilters
 
 EMAIL_SEND_MAX_ATTEMPTS = 3
-EMAIL_LAST_ERROR_MAX_LENGTH = 2000
-
-
-def _truncate_error_message(error_message: str) -> str:
-    normalized = error_message.strip()
-    if not normalized:
-        return "Error desconocido al enviar email."
-    if len(normalized) <= EMAIL_LAST_ERROR_MAX_LENGTH:
-        return normalized
-    return normalized[:EMAIL_LAST_ERROR_MAX_LENGTH]
 
 
 def _owner_not_sendable_reason(owner: User | None) -> str:
@@ -67,6 +61,63 @@ async def _get_product_request_or_none(
         )
     )
     return result.scalar_one_or_none()
+
+
+def _set_product_request_email_snapshot(
+    product_request: ProductRequest,
+    event: NotificationOutboxEvent | None,
+) -> None:
+    email_status = ProductRequestEmailStatus.PENDING
+    email_attempts = 0
+    email_last_error: str | None = None
+    email_sent_at = None
+
+    if event is not None and event.status == NotificationOutboxStatus.PROCESSED:
+        email_status = ProductRequestEmailStatus.SENT
+        email_attempts = event.attempts
+        email_sent_at = event.processed_at
+    elif event is not None and event.status == NotificationOutboxStatus.FAILED:
+        email_status = ProductRequestEmailStatus.FAILED
+        email_attempts = event.attempts
+        email_last_error = event.last_error
+
+    setattr(product_request, "email_status", email_status)
+    setattr(product_request, "email_attempts", email_attempts)
+    setattr(product_request, "email_last_error", email_last_error)
+    setattr(product_request, "email_sent_at", email_sent_at)
+
+
+async def _list_product_request_notification_events(
+    session: AsyncSession,
+    product_request_ids: list[uuid.UUID],
+) -> dict[uuid.UUID, NotificationOutboxEvent]:
+    if not product_request_ids:
+        return {}
+
+    result = await session.execute(
+        select(NotificationOutboxEvent).where(
+            NotificationOutboxEvent.event_type
+            == EVENT_PRODUCT_REQUEST_OWNER_NOTIFICATION_REQUESTED,
+            NotificationOutboxEvent.aggregate_id.in_(product_request_ids),
+        )
+    )
+    events = list(result.scalars().all())
+    return {event.aggregate_id: event for event in events}
+
+
+async def _hydrate_product_request_email_snapshots(
+    session: AsyncSession,
+    product_requests: list[ProductRequest],
+) -> None:
+    events_by_request_id = await _list_product_request_notification_events(
+        session,
+        [product_request.id for product_request in product_requests],
+    )
+    for product_request in product_requests:
+        _set_product_request_email_snapshot(
+            product_request,
+            events_by_request_id.get(product_request.id),
+        )
 
 
 async def _get_owner_user_for_organization(
@@ -106,8 +157,6 @@ async def create_product_request(
         requested_for_location_id=requested_for_location_id,
         subject=subject,
         message=message,
-        email_status=ProductRequestEmailStatus.PENDING,
-        email_attempts=0,
     )
     session.add(product_request)
 
@@ -141,6 +190,10 @@ async def create_product_request(
     )
     if created_product_request is None:
         raise RuntimeError("No se pudo recuperar la solicitud de producto creada.")
+    await _hydrate_product_request_email_snapshots(
+        session,
+        [created_product_request],
+    )
     return created_product_request
 
 
@@ -202,4 +255,5 @@ async def list_product_requests_for_organization(
             ),
         )
 
+    await _hydrate_product_request_email_snapshots(session, product_requests)
     return product_requests

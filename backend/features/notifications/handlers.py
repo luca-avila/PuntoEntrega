@@ -55,9 +55,7 @@ HANDLERS: dict[str, NotificationHandler] = {
 }
 
 FAILURE_HANDLERS: dict[str, NotificationFailureHandler] = {
-    EVENT_PRODUCT_REQUEST_OWNER_NOTIFICATION_REQUESTED: (
-        product_request_notifications.mark_owner_notification_failed
-    ),
+    # Intentionally empty: notification delivery state is tracked in outbox.
 }
 
 

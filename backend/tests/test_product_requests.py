@@ -9,10 +9,11 @@ from sqlalchemy.sql.elements import ColumnElement
 
 from core.db import async_session_maker
 from features.auth.models import User
-from features.notifications.models import NotificationOutboxEvent
+from features.notifications.models import NotificationOutboxEvent, NotificationOutboxStatus
+from features.notifications.outbox import EVENT_PRODUCT_REQUEST_OWNER_NOTIFICATION_REQUESTED
 from features.notifications.worker import process_pending_events
 from features.organizations.models import OrganizationMembership
-from features.product_requests.models import ProductRequest, ProductRequestEmailStatus
+from features.product_requests.models import ProductRequestEmailStatus
 from tests.test_locations import (
     build_location_payload,
     login_user,
@@ -92,17 +93,40 @@ async def wait_for_product_request_status_in_db(
     for _ in range(attempts):
         await process_pending_events()
         async with async_session_maker() as session:
-            product_request = await session.get(ProductRequest, product_request_id)
-            if (
-                product_request is not None
-                and product_request.email_status == expected_status
-            ):
+            result = await session.execute(
+                select(NotificationOutboxEvent).where(
+                    NotificationOutboxEvent.event_type
+                    == EVENT_PRODUCT_REQUEST_OWNER_NOTIFICATION_REQUESTED,
+                    NotificationOutboxEvent.aggregate_id == product_request_id,
+                )
+            )
+            event = result.scalar_one_or_none()
+            if event is None:
+                continue
+
+            if event.status == NotificationOutboxStatus.PROCESSED:
+                current_status = ProductRequestEmailStatus.SENT
+                current_attempts = event.attempts
+                current_last_error = None
+                current_sent_at = event.processed_at
+            elif event.status == NotificationOutboxStatus.FAILED:
+                current_status = ProductRequestEmailStatus.FAILED
+                current_attempts = event.attempts
+                current_last_error = event.last_error
+                current_sent_at = None
+            else:
+                current_status = ProductRequestEmailStatus.PENDING
+                current_attempts = 0
+                current_last_error = None
+                current_sent_at = None
+
+            if current_status == expected_status:
                 return {
-                    "id": str(product_request.id),
-                    "email_status": product_request.email_status.value,
-                    "email_attempts": product_request.email_attempts,
-                    "email_last_error": product_request.email_last_error,
-                    "email_sent_at": product_request.email_sent_at,
+                    "id": str(product_request_id),
+                    "email_status": current_status.value,
+                    "email_attempts": current_attempts,
+                    "email_last_error": current_last_error,
+                    "email_sent_at": current_sent_at,
                 }
         await asyncio.sleep(delay_seconds)
 
@@ -430,11 +454,12 @@ class TestProductRequestsEmailStatus:
         product_request_id = uuid.UUID(payload["id"])
 
         async with async_session_maker() as session:
-            persisted_request = await session.get(ProductRequest, product_request_id)
             outbox_events = list(
                 (
                     await session.execute(
                         select(NotificationOutboxEvent).where(
+                            NotificationOutboxEvent.event_type
+                            == EVENT_PRODUCT_REQUEST_OWNER_NOTIFICATION_REQUESTED,
                             NotificationOutboxEvent.aggregate_id == product_request_id
                         )
                     )
@@ -443,11 +468,9 @@ class TestProductRequestsEmailStatus:
                 .all()
             )
 
-        assert persisted_request is not None
-        assert persisted_request.email_status == ProductRequestEmailStatus.PENDING
-        assert persisted_request.email_attempts == 0
-        assert persisted_request.email_sent_at is None
         assert len(outbox_events) == 1
+        assert outbox_events[0].status == NotificationOutboxStatus.PENDING
+        assert outbox_events[0].attempts == 0
 
     async def test_email_failure_marks_request_as_failed_and_keeps_record(
         self,
@@ -487,12 +510,6 @@ class TestProductRequestsEmailStatus:
         )
         assert status_payload["email_attempts"] == 2
         assert "smtp down" in str(status_payload["email_last_error"])
-
-        async with async_session_maker() as session:
-            persisted_request = await session.get(ProductRequest, product_request_id)
-
-        assert persisted_request is not None
-        assert persisted_request.email_status == ProductRequestEmailStatus.FAILED
 
     async def test_non_sendable_owner_marks_request_as_failed(self, client: AsyncClient):
         owner_email, member_email, _organization_id, product_id = await setup_owner_and_member(
